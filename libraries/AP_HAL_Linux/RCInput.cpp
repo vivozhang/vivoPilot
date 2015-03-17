@@ -313,6 +313,27 @@ reset:
 }
 
 /*
+ process a SBUS input pulse of the given bytes
+ */
+void LinuxRCInput::_process_sbus_bytes(uint8_t bytes[25])
+{
+    uint8_t i;
+    uint16_t values[LINUX_RC_INPUT_NUM_CHANNELS];
+    uint16_t num_values=0;
+    bool sbus_failsafe=false, sbus_frame_drop=false;
+    if (sbus_decode(bytes, values, &num_values,
+                    &sbus_failsafe, &sbus_frame_drop,
+                    LINUX_RC_INPUT_NUM_CHANNELS) &&
+        num_values >= 5) {
+        for (i=0; i<num_values; i++) {
+            _pwm_values[i] = values[i];
+        }
+        _num_channels = num_values;
+        new_rc_input = true;
+    }
+}
+
+/*
   process a RC input pulse of the given width
  */
 void LinuxRCInput::_process_rc_pulse(uint16_t width_s0, uint16_t width_s1)
