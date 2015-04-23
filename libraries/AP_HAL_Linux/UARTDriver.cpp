@@ -50,6 +50,11 @@ void LinuxUARTDriver::set_device_path(char *path)
     device_path = path;
 }
 
+bool LinuxUARTDriver::is_device_path_null(void)
+{
+    return (device_path == NULL);
+}
+
 /*
   open the tty
  */

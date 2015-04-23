@@ -25,7 +25,7 @@ public:
 
  protected:
     void _process_rc_pulse(uint16_t width_s0, uint16_t width_s1);
-    void _process_sbus_bytes(uint8_t bytes[25]);
+    void _process_rpio_bytes(uint8_t bytes[28]);
 
  private:
     volatile bool new_rc_input;

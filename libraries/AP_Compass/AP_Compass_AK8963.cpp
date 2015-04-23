@@ -25,7 +25,7 @@
 #include <AP_Math.h>
 #include <AP_HAL.h>
 #include "AP_Compass_AK8963.h"
-
+#include <stdio.h>
 
 #define READ_FLAG                   0x80
 #define MPUREG_I2C_SLV0_ADDR        0x25
@@ -91,7 +91,7 @@
 #define AK8963_ASAX                                     0x10
 
 #define AK8963_DEBUG 0
-#define AK8963_SELFTEST 0
+#define AK8963_SELFTEST 1
 #if AK8963_DEBUG
 #define error(...) fprintf(stderr, __VA_ARGS__)
 #define debug(...) hal.console->printf(__VA_ARGS__)
@@ -415,7 +415,7 @@ bool AP_Compass_AK8963::init()
 
     hal.scheduler->resume_timer_procs();
     hal.scheduler->register_timer_process( AP_HAL_MEMBERPROC(&AP_Compass_AK8963::_update));
-
+    
     _start_conversion();
 
     _initialised = true;

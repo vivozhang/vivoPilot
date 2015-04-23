@@ -260,6 +260,8 @@ void AP_Baro_MS5611::_timer(void)
     if (hal.scheduler->micros() - _last_timer < 10000) {
         return;
     }
+    
+    _last_timer = hal.scheduler->micros();
 
     if (!_serial->sem_take_nonblocking()) {
         return;
@@ -307,7 +309,6 @@ void AP_Baro_MS5611::_timer(void)
         }
     }
 
-    _last_timer = hal.scheduler->micros();
     _serial->sem_give();
 }
 

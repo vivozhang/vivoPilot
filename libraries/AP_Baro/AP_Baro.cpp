@@ -267,7 +267,7 @@ void AP_Baro::init(void)
     }
 #elif HAL_BARO_DEFAULT == HAL_BARO_MS5611
     {
-        drivers[0] = new AP_Baro_MS5611(*this, new AP_SerialBus_I2C(MS5611_I2C_ADDR), false);
+        drivers[0] = new AP_Baro_MS5611(*this, new AP_SerialBus_I2C(MS5611_I2C_ADDR), true);
         _num_drivers = 1;
     }
 #elif HAL_BARO_DEFAULT == HAL_BARO_MS5611_SPI

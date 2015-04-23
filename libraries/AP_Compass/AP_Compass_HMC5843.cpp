@@ -112,7 +112,12 @@ bool AP_Compass_HMC5843::read_raw()
     return true;
 }
 
-
+#if CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_RASPILOT
+/* stub to satisfy Compass API*/
+void AP_Compass_HMC5843::accumulate(void)
+{
+}
+#else
 // accumulate a reading from the magnetometer
 void AP_Compass_HMC5843::accumulate(void)
 {
@@ -154,6 +159,7 @@ void AP_Compass_HMC5843::accumulate(void)
 	  _last_accum_time = tnow;
    }
 }
+#endif
 
 
 /*
@@ -312,6 +318,9 @@ AP_Compass_HMC5843::init()
 	// perform an initial read
 	_healthy[0] = true;
 	read();
+#if CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_RASPILOT
+    hal.scheduler->register_timer_process( AP_HAL_MEMBERPROC(&AP_Compass_HMC5843::_update));
+#endif
 
 #if 0
     hal.console->printf_P(PSTR("CalX: %.2f CalY: %.2f CalZ: %.2f\n"), 
@@ -321,7 +330,7 @@ AP_Compass_HMC5843::init()
     return success;
 }
 
-// Read Sensor data
+// Read compass data
 bool AP_Compass_HMC5843::read()
 {
     if (!_initialised) {
@@ -336,49 +345,93 @@ bool AP_Compass_HMC5843::read()
         }
         if (!re_initialise()) {
             _retry_time = hal.scheduler->millis() + 1000;
-			hal.i2c->setHighSpeed(false);
+            hal.i2c->setHighSpeed(false);
             return false;
         }
     }
-
-	if (_accum_count == 0) {
-	   accumulate();
-	   if (!_healthy[0] || _accum_count == 0) {
-		  // try again in 1 second, and set I2c clock speed slower
-		  _retry_time = hal.scheduler->millis() + 1000;
-		  hal.i2c->setHighSpeed(false);
-		  return false;
-	   }
-	}
-
-	_field[0].x = _mag_x_accum * calibration[0] / _accum_count;
-	_field[0].y = _mag_y_accum * calibration[1] / _accum_count;
-	_field[0].z = _mag_z_accum * calibration[2] / _accum_count;
-	_accum_count = 0;
-	_mag_x_accum = _mag_y_accum = _mag_z_accum = 0;
-
+    
+    if (_accum_count == 0) {
+#if CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_RASPILOT
+        _update();
+#else
+        accumulate();
+#endif
+        if (!_healthy[0] || _accum_count == 0) {
+            // try again in 1 second, and set I2c clock speed slower
+            _retry_time = hal.scheduler->millis() + 1000;
+            hal.i2c->setHighSpeed(false);
+            return false;
+        }
+    }
+    
+    _field[0].x = _mag_x_accum * calibration[0] / _accum_count;
+    _field[0].y = _mag_y_accum * calibration[1] / _accum_count;
+    _field[0].z = _mag_z_accum * calibration[2] / _accum_count;
+    _accum_count = 0;
+    _mag_x_accum = _mag_y_accum = _mag_z_accum = 0;
+    
     last_update = hal.scheduler->micros(); // record time of update
-
+    
     // rotate to the desired orientation
     if (product_id == AP_COMPASS_TYPE_HMC5883L) {
         _field[0].rotate(ROTATION_YAW_90);
     }
-
+    
     // apply default board orientation for this compass type. This is
     // a noop on most boards
     _field[0].rotate(MAG_BOARD_ORIENTATION);
-
+    
     // add user selectable orientation
     _field[0].rotate((enum Rotation)_orientation[0].get());
-
+    
     if (!_external[0]) {
         // and add in AHRS_ORIENTATION setting if not an external compass
         _field[0].rotate(_board_orientation);
     }
-
+    
     apply_corrections(_field[0],0);
-
+    
     _healthy[0] = true;
-
+    
     return true;
 }
+
+#if CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_RASPILOT
+void AP_Compass_HMC5843::_update()
+{
+    if (!_initialised) {
+        return;
+    }
+    uint32_t tnow = hal.scheduler->micros();
+    if (_healthy[0] && _accum_count != 0 && (tnow - _last_accum_time) < 13333) {
+        // the compass gets new data at 75Hz
+        return;
+    }
+    
+    if (!_i2c_sem->take(10)) {
+        // the bus is busy - try again later
+        return;
+    }
+    bool result = read_raw();
+    _i2c_sem->give();
+    
+    if (result) {
+        // the _mag_N values are in the range -2048 to 2047, so we can
+        // accumulate up to 15 of them in an int16_t. Let's make it 14
+        // for ease of calculation. We expect to do reads at 10Hz, and
+        // we get new data at most 75Hz, so we don't expect to
+        // accumulate more than 8 before a read
+        _mag_x_accum += _mag_x;
+        _mag_y_accum += _mag_y;
+        _mag_z_accum += _mag_z;
+        _accum_count++;
+        if (_accum_count == 14) {
+            _mag_x_accum /= 2;
+            _mag_y_accum /= 2;
+            _mag_z_accum /= 2;
+            _accum_count = 7;
+        }
+        _last_accum_time = tnow;
+    }
+}
+#endif

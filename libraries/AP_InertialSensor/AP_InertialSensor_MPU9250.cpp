@@ -18,7 +18,6 @@
 
 #include <AP_HAL.h>
 #if CONFIG_HAL_BOARD == HAL_BOARD_LINUX
-
 #include "AP_InertialSensor_MPU9250.h"
 #include "../AP_HAL_Linux/GPIO.h"
 
@@ -253,7 +252,7 @@ bool AP_InertialSensor_MPU9250::_init_sensor(void)
 
     // start the timer process to read samples
     hal.scheduler->register_timer_process(AP_HAL_MEMBERPROC(&AP_InertialSensor_MPU9250::_poll_data));
-
+    
 #if MPU9250_DEBUG
     _dump_registers();
 #endif
@@ -291,8 +290,8 @@ bool AP_InertialSensor_MPU9250::update( void )
 #elif CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_RASPILOT
     // Assuming RaspberryPi is right
     // way up, and PWM pins on Raspilot are at the back of the aircraft
-    accel.rotate(ROTATION_ROLL_180_YAW_90);
-    gyro.rotate(ROTATION_ROLL_180_YAW_90);
+    accel.rotate(ROTATION_ROLL_180);
+    gyro.rotate(ROTATION_ROLL_180);
 #elif CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_BBBMINI
     accel.rotate(ROTATION_ROLL_180);
     gyro.rotate(ROTATION_ROLL_180);

@@ -239,6 +239,14 @@ void LinuxScheduler::_run_timers(bool called_from_timer_thread)
             _timer_proc[i]();
         }
     }
+#if CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_RASPILOT
+    //SPI UART use SPI
+    if ( ((LinuxUARTDriver *)hal.uartB)->is_device_path_null() )
+    {
+        ((LinuxUARTDriver *)hal.uartB)->_timer_tick();
+    }
+#endif
+    
     _timer_semaphore.give();
 
     // and the failsafe, if one is setup
@@ -316,7 +324,15 @@ void *LinuxScheduler::_uart_thread(void)
 
         // process any pending serial bytes
         ((LinuxUARTDriver *)hal.uartA)->_timer_tick();
+#if CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_RASPILOT
+        //SPI UART not use SPI
+        if ( !((LinuxUARTDriver *)hal.uartB)->is_device_path_null() )
+        {
+            ((LinuxUARTDriver *)hal.uartB)->_timer_tick();
+        }
+#else
         ((LinuxUARTDriver *)hal.uartB)->_timer_tick();
+#endif
         ((LinuxUARTDriver *)hal.uartC)->_timer_tick();
     }
     return NULL;

@@ -30,10 +30,11 @@ public:
     AP_HAL::AnalogSource* channel(int16_t n);
 
     /* Board voltage is not available */
-    float board_voltage(void) 
-    { 
-        return 0.0f; 
-    }
+    float board_voltage(void);
+    
+protected:
+    AP_HAL::AnalogSource *_vcc_pin_analog_source;
+    
 private:
     AP_ADC_ADS1115 *_adc;
     RaspilotAnalogSource *_channels[RASPILOT_ADC_MAX_CHANNELS];

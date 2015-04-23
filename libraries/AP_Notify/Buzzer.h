@@ -24,6 +24,8 @@
  # define BUZZER_PIN    59      // pin 59 on APM2
 #elif CONFIG_HAL_BOARD == HAL_BOARD_VRBRAIN
  # define BUZZER_PIN    32
+#elif CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_RASPILOT
+ # define BUZZER_PIN    18
 #else
  # define BUZZER_PIN    0       // pin undefined on other boards
 #endif

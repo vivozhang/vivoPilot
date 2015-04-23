@@ -1,4 +1,5 @@
 #include <AP_HAL.h>
+#include <stdio.h>
 
 #if CONFIG_HAL_BOARD == HAL_BOARD_LINUX
 
@@ -61,6 +62,13 @@ RaspilotAnalogIn::RaspilotAnalogIn()
     _channels_number = _adc->get_channels_number();
 }
 
+float RaspilotAnalogIn::board_voltage(void)
+{
+    _vcc_pin_analog_source->set_pin(2);
+    
+    return _vcc_pin_analog_source->voltage_average() * 2.0;
+}
+
 AP_HAL::AnalogSource* RaspilotAnalogIn::channel(int16_t pin)
 {
     for (uint8_t j = 0; j < _channels_number; j++) {
@@ -77,6 +85,7 @@ AP_HAL::AnalogSource* RaspilotAnalogIn::channel(int16_t pin)
 void RaspilotAnalogIn::init(void* implspecific)
 {
     _adc->init();
+    _vcc_pin_analog_source = channel(2);
     hal.scheduler->suspend_timer_procs();
     hal.scheduler->register_timer_process( AP_HAL_MEMBERPROC(&RaspilotAnalogIn::_update));
     hal.scheduler->resume_timer_procs();
@@ -90,7 +99,7 @@ void RaspilotAnalogIn::_update()
 
     adc_report_s reports[RASPILOT_ADC_MAX_CHANNELS];
 
-    size_t rc = _adc->read(reports, 6);
+    size_t rc = _adc->read(reports, RASPILOT_ADC_MAX_CHANNELS);
 
     for (size_t i = 0; i < rc; i++) {
         for (uint8_t j=0; j < rc; j++) {

@@ -20,6 +20,11 @@
 #include "ToshibaLED.h"
 #include "ToshibaLED_I2C.h"
 
+#if CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_RASPILOT
+#include "../AP_HAL_Linux/GPIO.h"
+#define TOSHIBA_LED_RESET RPI_GPIO_27
+#endif
+
 extern const AP_HAL::HAL& hal;
 
 #define TOSHIBA_LED_ADDRESS 0x55    // default I2C bus address
@@ -30,6 +35,13 @@ extern const AP_HAL::HAL& hal;
 
 bool ToshibaLED_I2C::hw_init()
 {
+#if CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_RASPILOT
+    // pull up reset pin
+    enable_pin = hal.gpio->channel(TOSHIBA_LED_RESET);
+    enable_pin->mode(HAL_GPIO_OUTPUT);
+    enable_pin->write(1);
+#endif
+    
     // get pointer to i2c bus semaphore
     AP_HAL::Semaphore* i2c_sem = hal.i2c->get_semaphore();
 
@@ -54,12 +66,23 @@ bool ToshibaLED_I2C::hw_init()
     // give back i2c semaphore
     i2c_sem->give();
 
+#if CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_RASPILOT
+    hal.scheduler->register_timer_process(AP_HAL_MEMBERPROC(&ToshibaLED_I2C::_update));
+#endif
+
     return ret;
 }
 
 // set_rgb - set color as a combination of red, green and blue values
 bool ToshibaLED_I2C::hw_set_rgb(uint8_t red, uint8_t green, uint8_t blue)
 {
+#if CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_RASPILOT
+    _rgbVal[0] = (uint8_t)(blue>>4);
+    _rgbVal[1] = (uint8_t)(green>>4);
+    _rgbVal[2] = (uint8_t)(red>>4);
+    
+    return true;
+#else
     // get pointer to i2c bus semaphore
     AP_HAL::Semaphore* i2c_sem = hal.i2c->get_semaphore();
 
@@ -75,4 +98,30 @@ bool ToshibaLED_I2C::hw_set_rgb(uint8_t red, uint8_t green, uint8_t blue)
     // give back i2c semaphore
     i2c_sem->give();
     return success;
+#endif
 }
+
+#if CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_RASPILOT
+void ToshibaLED_I2C::_update(void)
+{
+    if (hal.scheduler->micros() - _last_update_timestamp < 100000) {
+        return;
+    }
+    
+    _last_update_timestamp = hal.scheduler->micros();
+    
+    // get pointer to i2c bus semaphore
+    AP_HAL::Semaphore* i2c_sem = hal.i2c->get_semaphore();
+    
+    // exit immediately if we can't take the semaphore
+    if (i2c_sem == NULL || !i2c_sem->take(5)) {
+        return;
+    }
+    
+    // update the red value
+    hal.i2c->writeRegisters(TOSHIBA_LED_ADDRESS, TOSHIBA_LED_PWM0, 3, _rgbVal);
+    
+    // give back i2c semaphore
+    i2c_sem->give();
+}
+#endif

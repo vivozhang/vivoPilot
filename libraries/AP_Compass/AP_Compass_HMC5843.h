@@ -29,6 +29,8 @@ private:
     int16_t             _mag_z_accum;
     uint8_t			    _accum_count;
     uint32_t            _last_accum_time;
+    
+    void                _update();//if use timer
 
 public:
     AP_Compass_HMC5843() : Compass() {

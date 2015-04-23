@@ -312,24 +312,25 @@ reset:
     memset(&dsm_state, 0, sizeof(dsm_state));        
 }
 
-/*
- process a SBUS input pulse of the given bytes
- */
-void LinuxRCInput::_process_sbus_bytes(uint8_t bytes[25])
+void LinuxRCInput::_process_rpio_bytes(uint8_t bytes[28])
 {
     uint8_t i;
-    uint16_t values[LINUX_RC_INPUT_NUM_CHANNELS];
-    uint16_t num_values=0;
-    bool sbus_failsafe=false, sbus_frame_drop=false;
-    if (sbus_decode(bytes, values, &num_values,
-                    &sbus_failsafe, &sbus_frame_drop,
-                    LINUX_RC_INPUT_NUM_CHANNELS) &&
-        num_values >= 5) {
-        for (i=0; i<num_values; i++) {
-            _pwm_values[i] = values[i];
+    
+    uint16_t num_values = bytes[0] + bytes[1]*256;
+    uint16_t rc_ok = (bytes[2] + bytes[3]*256) & (1 << 4);
+    
+    if ( rc_ok && (num_values >= 5) && (num_values <= 30) ) {
+        
+        for (i=0; (i<num_values)&&(i<LINUX_RC_INPUT_NUM_CHANNELS); i++) {
+            
+            uint16_t value = bytes[12+2*i] + bytes[13+2*i]*256;
+            if(value <= 2500) _pwm_values[i] = value;
+            
         }
+        
         _num_channels = num_values;
         new_rc_input = true;
+        
     }
 }
 

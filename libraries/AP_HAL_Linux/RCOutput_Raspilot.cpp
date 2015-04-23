@@ -17,10 +17,12 @@
 
 using namespace Linux;
 
-#define PWM_CHAN_COUNT 13
-#define PCA9685_OUTPUT_ENABLE RPI_GPIO_27
+#define PWM_CHAN_COUNT 8
 
 static const AP_HAL::HAL& hal = AP_HAL_BOARD_DRIVER;
+
+static uint8_t reg_FS[4] = {50, 1, 75, 0};
+static uint8_t reg_FA[4] = {50, 12, 11, 86};
 
 void LinuxRCOutput_Raspilot::init(void* machtnicht)
 {
@@ -34,10 +36,7 @@ void LinuxRCOutput_Raspilot::init(void* machtnicht)
     // Set the initial frequency
     set_freq(0, 50);
     
-    /* Enable PCA9685 PWM */
-    enable_pin = hal.gpio->channel(PCA9685_OUTPUT_ENABLE);
-    enable_pin->mode(HAL_GPIO_OUTPUT);
-    enable_pin->write(0);
+    hal.scheduler->register_timer_process(AP_HAL_MEMBERPROC(&LinuxRCOutput_Raspilot::_update));
 }
 
 void LinuxRCOutput_Raspilot::set_freq(uint32_t chmask, uint16_t freq_hz)
@@ -46,24 +45,9 @@ void LinuxRCOutput_Raspilot::set_freq(uint32_t chmask, uint16_t freq_hz)
         return;
     }
     
-    // Put PCA9685 to sleep (required to write prescaler)
-    hal.i2c->writeRegister(PCA9685_ADDRESS, PCA9685_RA_MODE1, PCA9685_MODE1_SLEEP_BIT);
+    uint8_t data[4] = {50, 3, freq_hz & 0xff, freq_hz >> 8};
+    hal.i2c->write(RPILOTIO_ADDRESS, sizeof(data), data);
     
-    // Calculate and write prescale value to match frequency
-    uint8_t prescale = round(25000000.f / 4096.f / freq_hz)  - 1;
-    hal.i2c->writeRegister(PCA9685_ADDRESS, PCA9685_RA_PRE_SCALE, prescale);
-    
-    // Reset all channels
-    uint8_t data[4] = {0x00, 0x00, 0x00, 0x00};
-    hal.i2c->writeRegisters(PCA9685_ADDRESS, PCA9685_RA_ALL_LED_ON_L, 4, data);
-    
-    // Enable external clocking
-    //hal.i2c->writeRegister(PCA9685_ADDRESS, PCA9685_RA_MODE1,
-    //                        PCA9685_MODE1_SLEEP_BIT | PCA9685_MODE1_EXTCLK_BIT);
-                            
-    // Restart the device to apply new settings and enable auto-incremented write
-    hal.i2c->writeRegister(PCA9685_ADDRESS, PCA9685_RA_MODE1, 
-                            PCA9685_MODE1_RESTART_BIT | PCA9685_MODE1_AI_BIT);    
     _frequency = freq_hz;
     
     _i2c_sem->give();
@@ -90,24 +74,7 @@ void LinuxRCOutput_Raspilot::write(uint8_t ch, uint16_t period_us)
         return;
     }
     
-    if (!_i2c_sem->take_nonblocking()) {
-        return;
-    }
-    
-    uint16_t length;
-    
-    if (period_us == 0)
-        length = 0;
-    else
-        length = round((period_us * 4096) / (1000000.f / _frequency)) - 1;
-        
-    uint8_t data[2] = {length & 0xFF, length >> 8};
-    uint8_t status = hal.i2c->writeRegisters(PCA9685_ADDRESS, 
-                                             PCA9685_RA_LED0_OFF_L + 4 * (ch + 3), 
-                                             2, 
-                                             data);
-                                             
-    _i2c_sem->give();                                         
+    _period_us[ch] = period_us;
 }
 
 void LinuxRCOutput_Raspilot::write(uint8_t ch, uint16_t* period_us, uint8_t len)
@@ -118,28 +85,48 @@ void LinuxRCOutput_Raspilot::write(uint8_t ch, uint16_t* period_us, uint8_t len)
 
 uint16_t LinuxRCOutput_Raspilot::read(uint8_t ch)
 {
-    if (!_i2c_sem->take_nonblocking()) {
+    if(ch >= PWM_CHAN_COUNT){
         return 0;
     }
     
-    uint8_t data[4] = {0x00, 0x00, 0x00, 0x00};
-    hal.i2c->readRegisters(PCA9685_ADDRESS, 
-                           PCA9685_RA_LED0_ON_L + 4 * (ch + 3), 
-                           4, 
-                           data);
-                           
-    uint16_t length = data[2] + ((data[3] & 0x0F) << 8);    
-    uint16_t period_us = (length + 1) * (1000000.f / _frequency) / 4096.f;
-    
-    _i2c_sem->give(); 
-    
-    return length == 0 ? 0 : period_us;   
+    return _period_us[ch];
 }
 
 void LinuxRCOutput_Raspilot::read(uint16_t* period_us, uint8_t len)
 {
     for (int i = 0; i < len; i++) 
         period_us[i] = read(0 + i);
+}
+
+void LinuxRCOutput_Raspilot::_update(void)
+{
+    int i;
+    
+    if (hal.scheduler->micros() - _last_update_timestamp < 10000) {
+        return;
+    }
+    
+    _last_update_timestamp = hal.scheduler->micros();
+    
+    if (!_i2c_sem->take_nonblocking()) {
+        return;
+    }
+    
+    hal.i2c->write(RPILOTIO_ADDRESS, sizeof(reg_FS), reg_FS);
+    hal.i2c->write(RPILOTIO_ADDRESS, sizeof(reg_FA), reg_FA);
+    
+    uint8_t data[18];
+    data[0] = 54;
+    data[1] = 0;
+    
+    for (i=0; i<8; i++) {
+        data[2+2*i] = _period_us[i] & 0xff;
+        data[3+2*i] = _period_us[i] >> 8;
+    }
+    
+    hal.i2c->write(RPILOTIO_ADDRESS, sizeof(data), data);
+    
+    _i2c_sem->give();
 }
 
 #endif // CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_RASPILOT

@@ -27,7 +27,6 @@
 #include <ToneAlarm_PX4.h>
 #include <ToneAlarm_Linux.h>
 #include <NavioLED_I2C.h>
-#include <RaspilotLED_I2C.h>
 #include <ExternalLED.h>
 #include <Buzzer.h>
 #include <VRBoard_LED.h>
@@ -44,8 +43,10 @@
 #elif CONFIG_HAL_BOARD == HAL_BOARD_VRBRAIN
     #define CONFIG_NOTIFY_DEVICES_COUNT 4
 #elif CONFIG_HAL_BOARD == HAL_BOARD_LINUX
-    #if CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_NAVIO || CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_RASPILOT
+    #if CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_NAVIO
         #define CONFIG_NOTIFY_DEVICES_COUNT 2
+    #elif CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_RASPILOT
+        #define CONFIG_NOTIFY_DEVICES_COUNT 3
     #else
         #define CONFIG_NOTIFY_DEVICES_COUNT 3
     #endif

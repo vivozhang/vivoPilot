@@ -201,6 +201,8 @@ void AP_ADC_ADS1115::_update()
     if (hal.scheduler->micros() - _last_update_timestamp < 100000) {
         return;
     }
+    
+    _last_update_timestamp = hal.scheduler->micros();
 
     union {
         uint8_t b[2];
@@ -241,5 +243,4 @@ void AP_ADC_ADS1115::_update()
 
     _i2c_sem->give();
 
-    _last_update_timestamp = hal.scheduler->micros();
 }
