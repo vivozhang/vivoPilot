@@ -39,7 +39,8 @@
 　* -B primary GPS接口<br>
 　* -C secondary数传接口<br>
 　* -E sencondary GPS接口<br>
-　raspilot中：-B使用树莓派自带的串口`/dev/ttyAMA0`；-C默认设置为用STM32扩展的串口，作为数传接口。波特率默认为57600，可以在Mission Planner界面中进行配置。<br>
+　raspilot中：-B 即GPS的串口使用树莓派自带的串口`/dev/ttyAMA0`，波特率自适应；<br>
+　-C 默认是STM32扩展的串口，作为数传接口。波特率默认为57600，可以在Mission Planner界面中进行配置。<br>
 <br>
 　如果要使用WiFi的udp作为数传的话，可以输入：<br>
 　`sudo ./ArduCopter.elf -A udp:192.168.1.100:14550 -B /dev/ttyAMA0`<br>
