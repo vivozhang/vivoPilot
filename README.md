@@ -4,7 +4,15 @@
 
 ###写入系统镜像到树莓派SD卡###
 
-###配置WiFi连接###
+###配置树莓派WiFi连接###
+编辑/etc/wpa_supplicant/wpa_supplicant.conf文件<br>
+　`sudo nano /etc/wpa_supplicant/wpa_supplicant.conf`<br>
+将文件中的<br>
+　`ssid = “emlidltd”`<br>
+　`psk = “emlidltd”`<br>
+　`key_mgmt = wpa-psk`<br>
+改为自己WiFi的SSID和密码。<br>
+<br>
 
 ###安装和设置飞控程序###
 1 下载飞控程序<br>
@@ -25,8 +33,8 @@
 　其中`192.168.1.100`改为PC端的IP地址<br>
 <br>
 3 设置开机自动运行<br>
-　修改/etc/rc.local文件，在exit 0前加入：<br>
-　`sudo ArduCopter-quad -A udp:192.168.1.2:14550 -C /dev/ttyAMA0 > /home/pi/startup_log &`<br>
+　修改/etc/rc.local文件，在`exit 0`前加入：<br>
+　`sudo ./home/pi/ArduCopter.elf -B /dev/ttyAMA0 > /home/pi/startup_log &`<br>
 　重新启动后飞控程序就会自动运行<br>
 <br>
 
