@@ -3,7 +3,21 @@
 ###硬件安装和接线###
 
 ###写入系统镜像到树莓派SD卡###
-
+树莓派官方的Linux系统实时性不适合运行飞控程序，因此要使用打了RT-patch的系统镜像。<br>
+首先下载和解压Linux系统的镜像文件。目前还没来得及自己编译，暂时借用emlid打包的镜像。<br>
+<br>
+　树莓派1代：https://mega.co.nz/#!RVJxHJpI!QVPTZaNY0AiuPbcxQjOTmZ2un6d0j7W3g1jwheuotUc<br>
+　树莓派2代：https://mega.co.nz/#!0VZFzbwC!6tTzWFKl8jdR4Q52A9A03wYyAPghIDKtxGpavNMBKn4<br>
+<br>
+然后按照树莓派的官方教程将镜像文件写入SD卡：<br>
+<br>
+　Linux：https://www.raspberrypi.org/documentation/installation/installing-images/linux.md<br>
+　Mac OS：https://www.raspberrypi.org/documentation/installation/installing-images/mac.md<br>
+　Windows：https://www.raspberrypi.org/documentation/installation/installing-images/windows.md<br>
+　其它帮助文档：https://www.raspberrypi.org/documentation/<br>
+<br>
+或者可以百度，有很多中文教程。<br>
+<br>
 ###配置树莓派WiFi连接###
 编辑/etc/wpa_supplicant/wpa_supplicant.conf文件<br>
 　`sudo nano /etc/wpa_supplicant/wpa_supplicant.conf`<br>
@@ -12,7 +26,6 @@
 　`psk = “emlidltd”`<br>
 　`key_mgmt = wpa-psk`<br>
 改为自己WiFi的SSID和密码。<br>
-<br>
 
 ###安装和设置飞控程序###
 1 下载飞控程序<br>
@@ -26,8 +39,8 @@
 　* -B primary GPS接口<br>
 　* -C secondary数传接口<br>
 　* -E sencondary GPS接口<br>
+　raspilot中：-B使用树莓派自带的串口`/dev/ttyAMA0`；-C默认设置为用STM32扩展的串口，作为数传接口。波特率默认为57600，可以在Mission Planner界面中进行配置。<br>
 <br>
-　raspilot中-B使用树莓派自带的串口`/dev/ttyAMA0` -C默认设置为从STM32转发的串口<br>
 　如果要使用WiFi的udp作为数传的话，可以输入：<br>
 　`sudo ./ArduCopter.elf -A udp:192.168.1.100:14550 -B /dev/ttyAMA0`<br>
 　其中`192.168.1.100`改为PC端的IP地址<br>
@@ -36,7 +49,6 @@
 　修改/etc/rc.local文件，在`exit 0`前加入：<br>
 　`sudo ./home/pi/ArduCopter.elf -B /dev/ttyAMA0 > /home/pi/startup_log &`<br>
 　重新启动后飞控程序就会自动运行<br>
-<br>
 
 ###编译飞控代码###
 从Copter-3.3开始，ardupilot的编译需要使用4.7版本以上的gcc。而树莓派系统上还是4.6版本的gcc，所以建议在Ubuntu下面交叉编译代码。
