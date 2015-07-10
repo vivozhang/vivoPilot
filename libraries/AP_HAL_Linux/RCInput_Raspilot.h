@@ -5,8 +5,6 @@
 #include <AP_HAL_Linux.h>
 #include "RCInput.h"
 
-#define RPILOTIO_ADDRESS             0x1a //Raspilotio default
-
 class Linux::LinuxRCInput_Raspilot : public Linux::LinuxRCInput
 {
 public:
@@ -15,7 +13,8 @@ public:
 private:
     uint32_t _last_timer;
     
-    AP_HAL::Semaphore *_i2c_sem;
+    AP_HAL::SPIDeviceDriver *_spi;
+    AP_HAL::Semaphore *_spi_sem;
     
     void _poll_data(void);
 };

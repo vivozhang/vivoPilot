@@ -10,11 +10,10 @@
 #include <AC_HELI_PID.h>
 #include <Filter.h>
 
-#define AC_ATTITUDE_HELI_ROLL_FF                    0.0f
-#define AC_ATTITUDE_HELI_PITCH_FF                   0.0f
-#define AC_ATTITUDE_HELI_YAW_FF                     0.0f
 #define AC_ATTITUDE_HELI_RATE_INTEGRATOR_LEAK_RATE  0.02f
-#define AC_ATTITUDE_HELI_RATE_FF_FILTER             5.0f
+#define AC_ATTITUDE_HELI_RATE_RP_FF_FILTER          10.0f
+#define AC_ATTITUDE_HELI_RATE_Y_VFF_FILTER          10.0f
+#define AC_ATTITUDE_HELI_RATE_Y_AFF_FILTER          10.0f
 
 class AC_AttitudeControl_Heli : public AC_AttitudeControl {
 public:
@@ -27,7 +26,11 @@ public:
         AC_AttitudeControl(ahrs, aparm, motors,
                            p_angle_roll, p_angle_pitch, p_angle_yaw,
                            pid_rate_roll, pid_rate_pitch, pid_rate_yaw),
-        _passthrough_roll(0), _passthrough_pitch(0)
+        _passthrough_roll(0), _passthrough_pitch(0),
+        pitch_feedforward_filter(AC_ATTITUDE_HELI_RATE_RP_FF_FILTER),
+        roll_feedforward_filter(AC_ATTITUDE_HELI_RATE_RP_FF_FILTER),
+        yaw_velocity_feedforward_filter(AC_ATTITUDE_HELI_RATE_Y_VFF_FILTER),
+        yaw_acceleration_feedforward_filter(AC_ATTITUDE_HELI_RATE_Y_AFF_FILTER)
 		{
             AP_Param::setup_object_defaults(this, var_info);
 		}
@@ -44,8 +47,6 @@ public:
     
     // use_flybar_passthrough - controls whether we pass-through control inputs to swash-plate
 	void use_flybar_passthrough(bool passthrough) {  _flags_heli.flybar_passthrough = passthrough; }
-    
-    void update_feedforward_filter_rates(float time_step);
 
     // user settable parameters
     static const struct AP_Param::GroupInfo var_info[];
@@ -73,20 +74,21 @@ private:
     // throttle methods
     //
 
-    // get_angle_boost - calculate total body frame throttle required to produce the given earth frame throttle
-    virtual int16_t get_angle_boost(int16_t throttle_pwm);
+    // calculate total body frame throttle required to produce the given earth frame throttle
+    float get_boosted_throttle(float throttle_in);
     
+    // pass through for roll and pitch
+    int16_t _passthrough_roll;
+    int16_t _passthrough_pitch;
     
     // LPF filters to act on Rate Feedforward terms to linearize output.
     // Due to complicated aerodynamic effects, feedforwards acting too fast can lead
     // to jerks on rate change requests.
-    LowPassFilterInt32 pitch_feedforward_filter;
-    LowPassFilterInt32 roll_feedforward_filter;
-    LowPassFilterInt32 yaw_feedforward_filter;
+    LowPassFilterFloat pitch_feedforward_filter;
+    LowPassFilterFloat roll_feedforward_filter;
+    LowPassFilterFloat yaw_velocity_feedforward_filter;
+    LowPassFilterFloat yaw_acceleration_feedforward_filter;
 
-    // pass through for roll and pitch
-    int16_t _passthrough_roll;
-    int16_t _passthrough_pitch;
 };
 
 #endif //AC_ATTITUDECONTROL_HELI_H

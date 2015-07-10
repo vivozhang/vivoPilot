@@ -68,7 +68,8 @@ DataFlash_File::DataFlash_File(const char *log_directory) :
 #if CONFIG_HAL_BOARD == HAL_BOARD_PX4 || CONFIG_HAL_BOARD == HAL_BOARD_VRBRAIN
     ,_perf_write(perf_alloc(PC_ELAPSED, "DF_write")),
     _perf_fsync(perf_alloc(PC_ELAPSED, "DF_fsync")),
-    _perf_errors(perf_alloc(PC_COUNT, "DF_errors"))
+    _perf_errors(perf_alloc(PC_COUNT, "DF_errors")),
+    _perf_overruns(perf_alloc(PC_COUNT, "DF_overruns"))
 #endif
 {}
 
@@ -106,6 +107,7 @@ void DataFlash_File::Init(const struct LogStructure *structure, uint8_t num_type
     }
     if (_writebuf != NULL) {
         free(_writebuf);
+        _writebuf = NULL;
     }
 
     /*
@@ -124,7 +126,7 @@ void DataFlash_File::Init(const struct LogStructure *structure, uint8_t num_type
     }
     _writebuf_head = _writebuf_tail = 0;
     _initialised = true;
-    hal.scheduler->register_io_process(AP_HAL_MEMBERPROC(&DataFlash_File::_io_timer));
+    hal.scheduler->register_io_process(FUNCTOR_BIND_MEMBER(&DataFlash_File::_io_timer, void));
 }
 
 // return true for CardInserted() if we successfully initialised
@@ -148,7 +150,9 @@ bool DataFlash_File::NeedErase(void)
 char *DataFlash_File::_log_file_name(uint16_t log_num)
 {
     char *buf = NULL;
-    asprintf(&buf, "%s/%u.BIN", _log_directory, (unsigned)log_num);
+    if (asprintf(&buf, "%s/%u.BIN", _log_directory, (unsigned)log_num) == 0) {
+        return NULL;
+    }
     return buf;
 }
 
@@ -159,7 +163,9 @@ char *DataFlash_File::_log_file_name(uint16_t log_num)
 char *DataFlash_File::_lastlog_file_name(void)
 {
     char *buf = NULL;
-    asprintf(&buf, "%s/LASTLOG.TXT", _log_directory);
+    if (asprintf(&buf, "%s/LASTLOG.TXT", _log_directory) == 0) {
+        return NULL;
+    }
     return buf;
 }
 
@@ -194,6 +200,7 @@ void DataFlash_File::WriteBlock(const void *pBuffer, uint16_t size)
     uint16_t space = BUF_SPACE(_writebuf);
     if (space < size) {
         // discard the whole write, to keep the log consistent
+        perf_count(_perf_overruns);
         return;
     }
 
@@ -222,15 +229,18 @@ void DataFlash_File::WriteBlock(const void *pBuffer, uint16_t size)
 /*
   read a packet. The header bytes have already been read.
 */
-void DataFlash_File::ReadBlock(void *pkt, uint16_t size)
+bool DataFlash_File::ReadBlock(void *pkt, uint16_t size)
 {
     if (_read_fd == -1 || !_initialised || _open_error) {
-        return;
+        return false;
     }
 
     memset(pkt, 0, size);
-    ::read(_read_fd, pkt, size);
+    if (::read(_read_fd, pkt, size) != size) {
+        return false;
+    }
     _read_offset += size;
+    return true;
 }
 
 
@@ -460,7 +470,7 @@ uint16_t DataFlash_File::start_new_log(void)
 */
 void DataFlash_File::LogReadProcess(uint16_t log_num,
                                     uint16_t start_page, uint16_t end_page, 
-                                    void (*print_mode)(AP_HAL::BetterStream *port, uint8_t mode),
+                                    print_mode_fn print_mode,
                                     AP_HAL::BetterStream *port)
 {
     uint8_t log_step = 0;
@@ -648,10 +658,10 @@ void DataFlash_File::_io_timer(void)
           chunk, ensuring the directory entry is updated after each
           write.
          */
-#if CONFIG_HAL_BOARD != HAL_BOARD_AVR_SITL
+        BUF_ADVANCEHEAD(_writebuf, nwritten);
+#if CONFIG_HAL_BOARD != HAL_BOARD_SITL && CONFIG_HAL_BOARD_SUBTYPE != HAL_BOARD_SUBTYPE_LINUX_NONE
         ::fsync(_write_fd);
 #endif
-        BUF_ADVANCEHEAD(_writebuf, nwritten);
     }
     perf_end(_perf_write);
 }

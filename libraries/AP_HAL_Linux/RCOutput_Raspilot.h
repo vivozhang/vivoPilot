@@ -4,8 +4,6 @@
 
 #include <AP_HAL_Linux.h>
 
-#define RPILOTIO_ADDRESS             0x1a //Raspilotio default
-
 class Linux::LinuxRCOutput_Raspilot : public AP_HAL::RCOutput {
     void     init(void* machtnichts);
     void     set_freq(uint32_t chmask, uint16_t freq_hz);
@@ -21,7 +19,8 @@ private:
     void reset();
     void _update(void);
     
-    AP_HAL::Semaphore *_i2c_sem;
+    AP_HAL::SPIDeviceDriver *_spi;
+    AP_HAL::Semaphore *_spi_sem;
     
     uint32_t _last_update_timestamp;
     uint16_t _frequency;

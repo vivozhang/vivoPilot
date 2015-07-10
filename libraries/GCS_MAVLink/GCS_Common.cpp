@@ -19,6 +19,8 @@
 
 #include <GCS.h>
 #include <AP_AHRS.h>
+#include <AP_HAL.h>
+#include <AP_Vehicle.h>
 
 extern const AP_HAL::HAL& hal;
 
@@ -34,28 +36,16 @@ GCS_MAVLINK::GCS_MAVLINK() :
 void
 GCS_MAVLINK::init(AP_HAL::UARTDriver *port, mavlink_channel_t mav_chan)
 {
+    // sanity check chan
+    if (mav_chan >= MAVLINK_COMM_NUM_BUFFERS) {
+        return;
+    }
+
     _port = port;
     chan = mav_chan;
 
-    switch (chan) {
-        case MAVLINK_COMM_0:
-            mavlink_comm_0_port = _port;
-            initialised = true;
-            break;
-        case MAVLINK_COMM_1:
-            mavlink_comm_1_port = _port;
-            initialised = true;
-            break;
-        case MAVLINK_COMM_2:
-#if MAVLINK_COMM_NUM_BUFFERS > 2
-            mavlink_comm_2_port = _port;
-            initialised = true;
-            break;
-#endif
-        default:
-            // do nothing for unsupport mavlink channels
-            break;
-    }
+    mavlink_comm_port[chan] = _port;
+    initialised = true;
     _queued_parameter = NULL;
     reset_cli_timeout();
 }
@@ -65,12 +55,12 @@ GCS_MAVLINK::init(AP_HAL::UARTDriver *port, mavlink_channel_t mav_chan)
   setup a UART, handling begin() and init()
  */
 void
-GCS_MAVLINK::setup_uart(const AP_SerialManager& serial_manager, AP_SerialManager::SerialProtocol protocol)
+GCS_MAVLINK::setup_uart(const AP_SerialManager& serial_manager, AP_SerialManager::SerialProtocol protocol, uint8_t instance)
 {
     // search for serial port
 
     AP_HAL::UARTDriver *uart;
-    uart = serial_manager.find_serial(protocol);
+    uart = serial_manager.find_serial(protocol, instance);
     if (uart == NULL) {
         // return immediately if not found
         return;
@@ -78,7 +68,7 @@ GCS_MAVLINK::setup_uart(const AP_SerialManager& serial_manager, AP_SerialManager
 
     // get associated mavlink channel
     mavlink_channel_t mav_chan;
-    if (!serial_manager.get_mavlink_channel(protocol, mav_chan)) {
+    if (!serial_manager.get_mavlink_channel(protocol, instance, mav_chan)) {
         // return immediately in unlikely case mavlink channel cannot be found
         return;
     }
@@ -102,7 +92,7 @@ GCS_MAVLINK::setup_uart(const AP_SerialManager& serial_manager, AP_SerialManager
     uart->set_flow_control(old_flow_control);
 
     // now change back to desired baudrate
-    uart->begin(serial_manager.find_baudrate(protocol));
+    uart->begin(serial_manager.find_baudrate(protocol, instance));
 
     // and init the gcs instance
     init(uart, mav_chan);
@@ -413,38 +403,22 @@ void GCS_MAVLINK::handle_gimbal_report(AP_Mount &mount, mavlink_message_t *msg) 
  */
 bool GCS_MAVLINK::have_flow_control(void)
 {
-    switch (chan) {
-    case MAVLINK_COMM_0:
-        if (mavlink_comm_0_port == NULL) {
-            return false;
-        } else {
-            // assume USB has flow control
-            return hal.gpio->usb_connected() || mavlink_comm_0_port->get_flow_control() != AP_HAL::UARTDriver::FLOW_CONTROL_DISABLE;
-        }
-        break;
-
-    case MAVLINK_COMM_1:
-        if (mavlink_comm_1_port == NULL) {
-            return false;
-        } else {
-            return mavlink_comm_1_port->get_flow_control() != AP_HAL::UARTDriver::FLOW_CONTROL_DISABLE;
-        }
-        break;
-
-    case MAVLINK_COMM_2:
-#if MAVLINK_COMM_NUM_BUFFERS > 2
-        if (mavlink_comm_2_port == NULL) {
-            return false;
-        } else {
-            return mavlink_comm_2_port != NULL && mavlink_comm_2_port->get_flow_control() != AP_HAL::UARTDriver::FLOW_CONTROL_DISABLE;
-        }
-        break;
-#endif
-
-    default:
-        break;
+    // sanity check chan
+    if (chan >= MAVLINK_COMM_NUM_BUFFERS) {
+        return false;
     }
-    return false;
+
+    if (mavlink_comm_port[chan] == NULL) {
+        return false;
+    }
+
+    if (chan == MAVLINK_COMM_0) {
+        // assume USB console has flow control
+        return hal.gpio->usb_connected() || mavlink_comm_port[chan]->get_flow_control() != AP_HAL::UARTDriver::FLOW_CONTROL_DISABLE;
+    } else {
+        // all other channels
+        return mavlink_comm_port[chan]->get_flow_control() != AP_HAL::UARTDriver::FLOW_CONTROL_DISABLE;
+    }
 }
 
 
@@ -572,66 +546,39 @@ void GCS_MAVLINK::handle_param_request_read(mavlink_message_t *msg)
 
 void GCS_MAVLINK::handle_param_set(mavlink_message_t *msg, DataFlash_Class *DataFlash)
 {
-    AP_Param *vp;
-    enum ap_var_type var_type;
-
     mavlink_param_set_t packet;
     mavlink_msg_param_set_decode(msg, &packet);
+    enum ap_var_type var_type;
 
     // set parameter
+    AP_Param *vp;
     char key[AP_MAX_NAME_SIZE+1];
     strncpy(key, (char *)packet.param_id, AP_MAX_NAME_SIZE);
     key[AP_MAX_NAME_SIZE] = 0;
 
-    // find the requested parameter
-    vp = AP_Param::find(key, &var_type);
-    if ((NULL != vp) &&                                 // exists
-        !isnan(packet.param_value) &&                       // not nan
-        !isinf(packet.param_value)) {                       // not inf
+    vp = AP_Param::set_param_by_name(key, packet.param_value, &var_type);
+    if (vp == NULL) {
+        return;
+    }
 
-        // add a small amount before casting parameter values
-        // from float to integer to avoid truncating to the
-        // next lower integer value.
-        float rounding_addition = 0.01;
-        
-        // handle variables with standard type IDs
-        if (var_type == AP_PARAM_FLOAT) {
-            ((AP_Float *)vp)->set_and_save(packet.param_value);
-        } else if (var_type == AP_PARAM_INT32) {
-            if (packet.param_value < 0) rounding_addition = -rounding_addition;
-            float v = packet.param_value+rounding_addition;
-            v = constrain_float(v, -2147483648.0, 2147483647.0);
-            ((AP_Int32 *)vp)->set_and_save(v);
-        } else if (var_type == AP_PARAM_INT16) {
-            if (packet.param_value < 0) rounding_addition = -rounding_addition;
-            float v = packet.param_value+rounding_addition;
-            v = constrain_float(v, -32768, 32767);
-            ((AP_Int16 *)vp)->set_and_save(v);
-        } else if (var_type == AP_PARAM_INT8) {
-            if (packet.param_value < 0) rounding_addition = -rounding_addition;
-            float v = packet.param_value+rounding_addition;
-            v = constrain_float(v, -128, 127);
-            ((AP_Int8 *)vp)->set_and_save(v);
-        } else {
-            // we don't support mavlink set on this parameter
-            return;
-        }
+    // save the change
+    vp->save();
 
-        // Report back the new value if we accepted the change
-        // we send the value we actually set, which could be
-        // different from the value sent, in case someone sent
-        // a fractional value to an integer type
-        mavlink_msg_param_value_send_buf(
-            msg,
-            chan,
-            key,
-            vp->cast_to_float(var_type),
-            mav_var_type(var_type),
-            _count_parameters(),
-            -1);     // XXX we don't actually know what its index is...
-        if (DataFlash != NULL) {
-            DataFlash->Log_Write_Parameter(key, vp->cast_to_float(var_type));
-        }
+    // Report back the new value if we accepted the change
+    // we send the value we actually set, which could be
+    // different from the value sent, in case someone sent
+    // a fractional value to an integer type
+    mavlink_msg_param_value_send_buf(
+        msg,
+        chan,
+        key,
+        vp->cast_to_float(var_type),
+        mav_var_type(var_type),
+        _count_parameters(),
+        -1);     // XXX we don't actually know what its index is...
+
+    if (DataFlash != NULL) {
+        DataFlash->Log_Write_Parameter(key, vp->cast_to_float(var_type));
     }
 }
 
@@ -707,12 +654,14 @@ void GCS_MAVLINK::handle_radio_status(mavlink_message_t *msg, DataFlash_Class &d
 
 /*
   handle an incoming mission item
+  return true if this is the last mission item, otherwise false
  */
-void GCS_MAVLINK::handle_mission_item(mavlink_message_t *msg, AP_Mission &mission)
+bool GCS_MAVLINK::handle_mission_item(mavlink_message_t *msg, AP_Mission &mission)
 {
     mavlink_mission_item_t packet;
-    uint8_t result = MAV_MISSION_ACCEPTED;
+    MAV_MISSION_RESULT result = MAV_MISSION_ACCEPTED;
     struct AP_Mission::Mission_Command cmd = {};
+    bool mission_is_complete = false;
 
     mavlink_msg_mission_item_decode(msg, &packet);
 
@@ -728,7 +677,7 @@ void GCS_MAVLINK::handle_mission_item(mavlink_message_t *msg, AP_Mission &missio
         handle_guided_request(cmd);
 
         // verify we received the command
-        result = 0;
+        result = MAV_MISSION_ACCEPTED;
         goto mission_ack;
     }
 
@@ -738,7 +687,7 @@ void GCS_MAVLINK::handle_mission_item(mavlink_message_t *msg, AP_Mission &missio
         handle_change_alt_request(cmd);
 
         // verify we recevied the command
-        result = 0;
+        result = MAV_MISSION_ACCEPTED;
         goto mission_ack;
     }
 
@@ -790,6 +739,7 @@ void GCS_MAVLINK::handle_mission_item(mavlink_message_t *msg, AP_Mission &missio
         
         send_text_P(SEVERITY_LOW,PSTR("flight plan received"));
         waypoint_receiving = false;
+        mission_is_complete = true;
         // XXX ignores waypoint radius for individual waypoints, can
         // only set WP_RADIUS parameter
     } else {
@@ -802,7 +752,7 @@ void GCS_MAVLINK::handle_mission_item(mavlink_message_t *msg, AP_Mission &missio
             send_message(MSG_NEXT_WAYPOINT);
         }
     }
-    return;
+    return mission_is_complete;
 
 mission_ack:
     // we are rejecting the mission/waypoint
@@ -812,6 +762,19 @@ mission_ack:
         msg->sysid,
         msg->compid,
         result);
+
+    return mission_is_complete;
+}
+
+void 
+GCS_MAVLINK::handle_gps_inject(const mavlink_message_t *msg, AP_GPS &gps)
+{
+    mavlink_gps_inject_data_t packet;
+    mavlink_msg_gps_inject_data_decode(msg, &packet);
+    //TODO: check target
+
+    gps.inject_data(packet.data, packet.len);
+
 }
 
 // send a message using mavlink, handling message queueing
@@ -864,7 +827,7 @@ void GCS_MAVLINK::send_message(enum ap_message id)
 }
 
 void
-GCS_MAVLINK::update(void (*run_cli)(AP_HAL::UARTDriver *))
+GCS_MAVLINK::update(run_cli_fn run_cli)
 {
     // receive new packets
     mavlink_message_t msg;
@@ -877,7 +840,7 @@ GCS_MAVLINK::update(void (*run_cli)(AP_HAL::UARTDriver *))
     {
         uint8_t c = comm_receive_ch(chan);
 
-        if (run_cli != NULL) {
+        if (run_cli) {
             /* allow CLI to be started by hitting enter 3 times, if no
              *  heartbeat packets have been received */
             if ((mavlink_active==0) && (hal.scheduler->millis() - _cli_timeout) < 20000 && 
@@ -1216,7 +1179,7 @@ void GCS_MAVLINK::send_battery2(const AP_BattMonitor &battery)
 /*
   handle a SET_MODE MAVLink message
  */
-void GCS_MAVLINK::handle_set_mode(mavlink_message_t* msg, bool (*set_mode)(uint8_t mode))
+void GCS_MAVLINK::handle_set_mode(mavlink_message_t* msg, set_mode_fn set_mode)
 {
     uint8_t result = MAV_RESULT_FAILED;
     mavlink_set_mode_t packet;
@@ -1330,3 +1293,46 @@ void GCS_MAVLINK::send_autopilot_version(void) const
     );
 }
 
+
+/*
+  send LOCAL_POSITION_NED message
+ */
+void GCS_MAVLINK::send_local_position(const AP_AHRS &ahrs) const
+{
+    Vector3f local_position, velocity;
+    if (!ahrs.get_relative_position_NED(local_position) ||
+        !ahrs.get_velocity_NED(velocity)) {
+        // we don't know the position and velocity
+        return;
+    }
+
+    mavlink_msg_local_position_ned_send(
+        chan,
+        hal.scheduler->millis(),
+        local_position.x,
+        local_position.y,
+        local_position.z,
+        velocity.x,
+        velocity.y,
+        velocity.z);
+}
+
+/*
+  send LOCAL_POSITION_NED message
+ */
+void GCS_MAVLINK::send_vibration(const AP_InertialSensor &ins) const
+{
+#if INS_VIBRATION_CHECK
+    Vector3f vibration = ins.get_vibration_levels();
+
+    mavlink_msg_vibration_send(
+        chan,
+        hal.scheduler->micros64(),
+        vibration.x,
+        vibration.y,
+        vibration.z,
+        ins.get_accel_clip_count(0),
+        ins.get_accel_clip_count(1),
+        ins.get_accel_clip_count(2));
+#endif
+}

@@ -42,6 +42,9 @@
 
 extern const AP_HAL::HAL& hal;
 
+// MPU6000 accelerometer scaling
+#define LSM303D_ACCEL_SCALE_1G    (GRAVITY_MSS / 4096.0f)
+
 #if CONFIG_HAL_BOARD == HAL_BOARD_APM2
 	#define LSM303D_DRDY_PIN 70
 #elif CONFIG_HAL_BOARD == HAL_BOARD_LINUX
@@ -49,6 +52,10 @@ extern const AP_HAL::HAL& hal;
 		#include "../AP_HAL_Linux/GPIO.h"
 		#define LSM303D_DRDY_X_PIN BBB_P8_8  // ACCEL DRDY
         #define LSM303D_DRDY_M_PIN BBB_P8_10  // MAGNETOMETER DRDY
+    #elif CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_RASPILOT
+        #include "../AP_HAL_Linux/GPIO.h"
+        #define LSM303D_DRDY_X_PIN RPI_GPIO_17  // ACCEL DRDY
+        #define LSM303D_DRDY_M_PIN RPI_GPIO_27  // MAGNETOMETER DRDY
 	#endif
 #endif
 
@@ -183,13 +190,32 @@ extern const AP_HAL::HAL& hal;
 #define LSM303D_ONE_G                   9.80665f
 
 
-AP_InertialSensor_LSM303D::AP_InertialSensor_LSM303D() : 
-    AP_InertialSensor(),
+AP_InertialSensor_LSM303D::AP_InertialSensor_LSM303D(AP_InertialSensor &imu) :
+    AP_InertialSensor_Backend(imu),
     _drdy_pin_x(NULL),
     _drdy_pin_m(NULL),
+    _spi(NULL),
+    _spi_sem(NULL),
     _initialised(false),
     _LSM303D_product_id(AP_PRODUCT_ID_NONE)
 {
+}
+
+/*
+ detect the sensor
+ */
+AP_InertialSensor_Backend *AP_InertialSensor_LSM303D::detect(AP_InertialSensor &_imu)
+{
+    AP_InertialSensor_LSM303D *sensor = new AP_InertialSensor_LSM303D(_imu);
+    if (sensor == NULL) {
+        return NULL;
+    }
+    if (!sensor->_init_sensor(RATE_200HZ)) {
+        delete sensor;
+        return NULL;
+    }
+    
+    return sensor;
 }
 
 uint16_t AP_InertialSensor_LSM303D::_init_sensor( Sample_rate sample_rate )
@@ -243,6 +269,8 @@ uint16_t AP_InertialSensor_LSM303D::_init_sensor( Sample_rate sample_rate )
             hal.scheduler->panic(PSTR("PANIC: failed to boot LSM303D 5 times")); 
         }
     } while (1);
+    
+    _accel_instance = _imu.register_accel();
 
     hal.scheduler->resume_timer_procs();
     
@@ -258,7 +286,7 @@ uint16_t AP_InertialSensor_LSM303D::_init_sensor( Sample_rate sample_rate )
     }
 
     // start the timer process to read samples
-    hal.scheduler->register_timer_process(AP_HAL_MEMBERPROC(&AP_InertialSensor_LSM303D::_poll_data));
+    hal.scheduler->register_timer_process(FUNCTOR_BIND_MEMBER(&AP_InertialSensor_LSM303D::_poll_data, void));
 
 #if LSM303D_DEBUG
     _dump_registers();
@@ -286,7 +314,7 @@ bool AP_InertialSensor_LSM303D::wait_for_sample(uint16_t timeout_ms)
 bool AP_InertialSensor_LSM303D::update( void )
 {
     // wait for at least 1 sample
-    if (!wait_for_sample(1000)) {
+    /*if (!wait_for_sample(1000)) {
         return false;
     }
 
@@ -302,7 +330,7 @@ bool AP_InertialSensor_LSM303D::update( void )
     _sum_count = 0;
     hal.scheduler->resume_timer_procs();
 
-    _accel[0].rotate(_board_orientation);
+    _accel[0].rotate(_board_orientation);*/
     // TODO change this for the corresponding value
     // _accel[0] *= MPU6000_ACCEL_SCALE_1G / _num_samples;
 
@@ -323,6 +351,24 @@ bool AP_InertialSensor_LSM303D::update( void )
     //         _spi_sem->give();
     //     }
     // }
+    
+    // we have a full set of samples
+    uint16_t num_samples;
+    Vector3f accel;
+    
+    hal.scheduler->suspend_timer_procs();
+    
+    accel(_accel_sum.x, _accel_sum.y, _accel_sum.z);
+    num_samples = _sum_count;
+    _accel_sum.zero();
+    _gyro_sum.zero();
+    
+    _sum_count = 0;
+    hal.scheduler->resume_timer_procs();
+    
+    accel *= LSM303D_ACCEL_SCALE_1G / num_samples;
+    
+    _publish_accel(_accel_instance, accel)
 
     return true;
 }
@@ -480,10 +526,10 @@ void AP_InertialSensor_LSM303D::_register_write_check(uint8_t reg, uint8_t val)
     _register_write(reg, val);
     readed = _register_read(reg);
     if (readed != val){
-	hal.console->printf_P(PSTR("Values doesn't match; written: %02x; read: %02x "), val, readed);
+        hal.console->printf("Values doesn't match; written: %02x; read: %02x ", val, readed);
     }
 #if LSM303D_DEBUG
-    hal.console->printf_P(PSTR("Values written: %02x; readed: %02x "), val, readed);
+    hal.console->printf("Values written: %02x; readed: %02x ", val, readed);
 #endif
 }
 
@@ -826,6 +872,6 @@ void AP_InertialSensor_LSM303D::_dump_registers(void)
 float AP_InertialSensor_LSM303D::get_delta_time() const
 {
     // the sensor runs at 200Hz
-    return 0.005 * _num_samples;
+    return 0.005f * _num_samples;
 }
 #endif

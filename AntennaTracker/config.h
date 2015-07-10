@@ -17,9 +17,6 @@
 #define ENABLE ENABLED
 #define DISABLE DISABLED
 
-#define CONFIG_BARO     HAL_BARO_DEFAULT
-#define CONFIG_COMPASS  HAL_COMPASS_DEFAULT
-
 #ifndef MAV_SYSTEM_ID
  // use 2 for antenna tracker by default
  # define MAV_SYSTEM_ID          2
@@ -55,6 +52,9 @@
 #endif
 #ifndef TRACKING_TIMEOUT_SEC
  # define TRACKING_TIMEOUT_SEC              5.0f    // consider we've lost track of vehicle after 5 seconds with no position update.
+#endif
+#ifndef DISTANCE_MIN_DEFAULT
+ # define DISTANCE_MIN_DEFAULT              5.0f    // do not track targets within 5 meters
 #endif
 
 //////////////////////////////////////////////////////////////////////////////

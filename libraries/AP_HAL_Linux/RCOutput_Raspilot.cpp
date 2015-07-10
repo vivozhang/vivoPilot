@@ -14,6 +14,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <math.h>
+#include "protocol.h"
 
 using namespace Linux;
 
@@ -21,36 +22,39 @@ using namespace Linux;
 
 static const AP_HAL::HAL& hal = AP_HAL_BOARD_DRIVER;
 
-static uint8_t reg_FS[4] = {50, 1, 75, 0};
-static uint8_t reg_FA[4] = {50, 12, 11, 86};
-
 void LinuxRCOutput_Raspilot::init(void* machtnicht)
 {
-    _i2c_sem = hal.i2c->get_semaphore();
-    if (_i2c_sem == NULL) {
+    _spi = hal.spi->device(AP_HAL::SPIDevice_RASPIO);
+    _spi_sem = _spi->get_semaphore();
+    
+    if (_spi_sem == NULL) {
         hal.scheduler->panic(PSTR("PANIC: RCOutput_Raspilot did not get "
-                                  "valid I2C semaphore!"));
+                                  "valid SPI semaphore!"));
         return; // never reached
     }
-
-    // Set the initial frequency
-    set_freq(0, 50);
     
-    hal.scheduler->register_timer_process(AP_HAL_MEMBERPROC(&LinuxRCOutput_Raspilot::_update));
+    hal.scheduler->register_timer_process(FUNCTOR_BIND_MEMBER(&LinuxRCOutput_Raspilot::_update, void));
 }
 
 void LinuxRCOutput_Raspilot::set_freq(uint32_t chmask, uint16_t freq_hz)
 {    
-    if (!_i2c_sem->take(10)) {
+    if (!_spi_sem->take(10)) {
         return;
     }
     
-    uint8_t data[4] = {50, 3, freq_hz & 0xff, freq_hz >> 8};
-    hal.i2c->write(RPILOTIO_ADDRESS, sizeof(data), data);
+    struct IOPacket _dma_packet_tx, _dma_packet_rx;
+    uint16_t count = 1;
+    _dma_packet_tx.count_code = count | PKT_CODE_WRITE;
+    _dma_packet_tx.page = 50;
+    _dma_packet_tx.offset = 3;
+    _dma_packet_tx.regs[0] = freq_hz;
+    _dma_packet_tx.crc = 0;
+    _dma_packet_tx.crc = crc_packet(&_dma_packet_tx);
+    _spi->transaction((uint8_t *)&_dma_packet_tx, (uint8_t *)&_dma_packet_rx, sizeof(_dma_packet_tx));
     
     _frequency = freq_hz;
     
-    _i2c_sem->give();
+    _spi_sem->give();
 }
 
 uint16_t LinuxRCOutput_Raspilot::get_freq(uint8_t ch)
@@ -108,25 +112,41 @@ void LinuxRCOutput_Raspilot::_update(void)
     
     _last_update_timestamp = hal.scheduler->micros();
     
-    if (!_i2c_sem->take_nonblocking()) {
+    if (!_spi_sem->take_nonblocking()) {
         return;
     }
+
+    struct IOPacket _dma_packet_tx, _dma_packet_rx;
+    uint16_t count = 1;
+    _dma_packet_tx.count_code = count | PKT_CODE_WRITE;
+    _dma_packet_tx.page = 50;
+    _dma_packet_tx.offset = 1;
+    _dma_packet_tx.regs[0] = 75;
+    _dma_packet_tx.crc = 0;
+    _dma_packet_tx.crc = crc_packet(&_dma_packet_tx);
+    _spi->transaction((uint8_t *)&_dma_packet_tx, (uint8_t *)&_dma_packet_rx, sizeof(_dma_packet_tx));
     
-    hal.i2c->write(RPILOTIO_ADDRESS, sizeof(reg_FS), reg_FS);
-    hal.i2c->write(RPILOTIO_ADDRESS, sizeof(reg_FA), reg_FA);
+    count = 1;
+    _dma_packet_tx.count_code = count | PKT_CODE_WRITE;
+    _dma_packet_tx.page = 50;
+    _dma_packet_tx.offset = 12;
+    _dma_packet_tx.regs[0] = 0x560B;
+    _dma_packet_tx.crc = 0;
+    _dma_packet_tx.crc = crc_packet(&_dma_packet_tx);
+    _spi->transaction((uint8_t *)&_dma_packet_tx, (uint8_t *)&_dma_packet_rx, sizeof(_dma_packet_tx));
     
-    uint8_t data[18];
-    data[0] = 54;
-    data[1] = 0;
-    
-    for (i=0; i<8; i++) {
-        data[2+2*i] = _period_us[i] & 0xff;
-        data[3+2*i] = _period_us[i] >> 8;
+    count = PWM_CHAN_COUNT;
+    _dma_packet_tx.count_code = count | PKT_CODE_WRITE;
+    _dma_packet_tx.page = 54;
+    _dma_packet_tx.offset = 0;
+    for (i=0; i<PWM_CHAN_COUNT; i++) {
+        _dma_packet_tx.regs[i] = _period_us[i];
     }
+    _dma_packet_tx.crc = 0;
+    _dma_packet_tx.crc = crc_packet(&_dma_packet_tx);
+    _spi->transaction((uint8_t *)&_dma_packet_tx, (uint8_t *)&_dma_packet_rx, sizeof(_dma_packet_tx));
     
-    hal.i2c->write(RPILOTIO_ADDRESS, sizeof(data), data);
-    
-    _i2c_sem->give();
+    _spi_sem->give();
 }
 
 #endif // CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_RASPILOT

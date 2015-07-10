@@ -82,17 +82,6 @@ uint8_t LinuxI2CDriver::write(uint8_t addr, uint8_t len, uint8_t* data)
     return 0; // success
 }
 
-uint8_t LinuxI2CDriver::write_rpio(uint8_t addr, uint8_t reg, uint8_t offset,
-                                                    uint8_t len, uint8_t* data)
-{
-    uint8_t buf[len+2];
-    buf[0] = reg;
-    buf[1] = offset;
-    if (len != 0) {
-        memcpy(&buf[2], data, len);
-    }
-    return write(addr, len+2, buf);
-}
 
 uint8_t LinuxI2CDriver::writeRegisters(uint8_t addr, uint8_t reg,
                                        uint8_t len, uint8_t* data)
@@ -145,42 +134,6 @@ uint8_t LinuxI2CDriver::read(uint8_t addr, uint8_t len, uint8_t* data)
     return 0;
 }
 
-uint8_t LinuxI2CDriver::read_rpio(uint8_t addr, uint8_t reg, uint8_t offset,
-                                                    uint8_t len, uint8_t* data)
-{
-    if (_fd == -1) {
-        return 1;
-    }
-    uint8_t regoffset[2] = {reg, offset};
-    struct i2c_msg msgs[] = {
-        {
-            addr  : addr,
-            flags : 0,
-            len   : 2,
-            buf   : (typeof(msgs->buf))regoffset
-        },
-        {
-            addr  : addr,
-            flags : I2C_M_RD,
-            len   : len,
-            buf   : (typeof(msgs->buf))data,
-        }
-    };
-    struct i2c_rdwr_ioctl_data i2c_data = {
-        msgs : msgs,
-        nmsgs : 2
-    };
-    
-    // prevent valgrind error
-    memset(data, 0, len);
-    
-    if (ioctl(_fd, I2C_RDWR, &i2c_data) == -1) {
-        return 1;
-    }
-    
-    return 0;
-}
-
 uint8_t LinuxI2CDriver::readRegisters(uint8_t addr, uint8_t reg,
                                       uint8_t len, uint8_t* data)
 {
@@ -221,11 +174,17 @@ uint8_t LinuxI2CDriver::readRegistersMultiple(uint8_t addr, uint8_t reg,
                                               uint8_t len, 
                                               uint8_t count, uint8_t* data)
 {
+#ifdef I2C_RDRW_IOCTL_MAX_MSGS
+    const uint8_t max_count = I2C_RDRW_IOCTL_MAX_MSGS / 2;
+#else
+    const uint8_t max_count = 8;
+#endif
+
     if (_fd == -1) {
         return 1;
     }
     while (count > 0) {
-        uint8_t n = count>8?8:count;
+        uint8_t n = count > max_count ? max_count : count;
         struct i2c_msg msgs[2*n];
         struct i2c_rdwr_ioctl_data i2c_data = {
         msgs : msgs,

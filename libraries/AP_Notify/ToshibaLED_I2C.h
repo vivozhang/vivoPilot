@@ -29,11 +29,6 @@ public:
 #if CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_RASPILOT
 private:
     AP_HAL::DigitalSource *enable_pin;
-    
-    uint32_t _last_update_timestamp;
-    uint8_t  _rgbVal[3];
-    
-    void _update(void);
 #endif
 };
 

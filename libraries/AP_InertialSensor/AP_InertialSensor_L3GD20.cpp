@@ -48,6 +48,9 @@ extern const AP_HAL::HAL& hal;
 	#if CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_ERLE || CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_PXF
 		#include "../AP_HAL_Linux/GPIO.h"
 		#define L3GD20_DRDY_PIN BBB_P8_34  // GYRO_DRDY
+    #elif CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_RASPILOT
+        #include "../AP_HAL_Linux/GPIO.h"
+        #define L3GD20_DRDY_PIN RPI_GPIO_6 // GYRO_DRDY
 	#endif
 #endif
 
@@ -147,15 +150,34 @@ extern const AP_HAL::HAL& hal;
 #define L3GD20_DEFAULT_FILTER_FREQ		30
 
 
-// const float AP_InertialSensor_L3GD20::_gyro_scale = (0.0174532f / 16.4f);
+const float AP_InertialSensor_L3GD20::_gyro_scale = (0.0174532f / 16.4f);
 
 
-AP_InertialSensor_L3GD20::AP_InertialSensor_L3GD20() : 
-	AP_InertialSensor(),
+AP_InertialSensor_L3GD20::AP_InertialSensor_L3GD20(AP_InertialSensor &imu) :
+	AP_InertialSensor_Backend(imu),
     _drdy_pin(NULL),
+    _spi(NULL),
+    _spi_sem(NULL),
     _initialised(false),
     _L3GD20_product_id(AP_PRODUCT_ID_NONE)
 {
+}
+
+/*
+ detect the sensor
+ */
+AP_InertialSensor_Backend *AP_InertialSensor_L3GD20::detect(AP_InertialSensor &_imu)
+{
+    AP_InertialSensor_L3GD20 *sensor = new AP_InertialSensor_L3GD20(_imu);
+    if (sensor == NULL) {
+        return NULL;
+    }
+    if (!sensor->_init_sensor(RATE_100HZ)) {
+        delete sensor;
+        return NULL;
+    }
+    
+    return sensor;
 }
 
 uint16_t AP_InertialSensor_L3GD20::_init_sensor( Sample_rate sample_rate )
@@ -194,8 +216,7 @@ uint16_t AP_InertialSensor_L3GD20::_init_sensor( Sample_rate sample_rate )
                 _spi_sem->give();
                 break;
             } else {
-                hal.console->println_P(
-                        PSTR("L3GD20 startup failed: no data ready"));
+                hal.console->println("L3GD20 startup failed: no data ready");
             }
             _spi_sem->give();
         }
@@ -218,7 +239,7 @@ uint16_t AP_InertialSensor_L3GD20::_init_sensor( Sample_rate sample_rate )
     }
 
     // start the timer process to read samples
-    hal.scheduler->register_timer_process(AP_HAL_MEMBERPROC(&AP_InertialSensor_L3GD20::_poll_data));
+    hal.scheduler->register_timer_process(FUNCTOR_BIND_MEMBER(&AP_InertialSensor_L3GD20::_poll_data, void));
 
 #if L3GD20_DEBUG
     _dump_registers();
@@ -246,7 +267,7 @@ bool AP_InertialSensor_L3GD20::wait_for_sample(uint16_t timeout_ms)
 bool AP_InertialSensor_L3GD20::update( void )
 {
     // wait for at least 1 sample
-    if (!wait_for_sample(1000)) {
+    /*if (!wait_for_sample(1000)) {
         return false;
     }
 
@@ -260,7 +281,7 @@ bool AP_InertialSensor_L3GD20::update( void )
 
     _gyro[0].rotate(_board_orientation);
     _gyro[0] *= _gyro_scale / _num_samples;
-    _gyro[0] -= _gyro_offset[0];
+    _gyro[0] -= _gyro_offset[0];*/
 
     // if (_last_filter_hz != _L3GD20_filter) {
     //     if (_spi_sem->take(10)) {
@@ -271,6 +292,22 @@ bool AP_InertialSensor_L3GD20::update( void )
     //         _spi_sem->give();
     //     }
     // }
+    
+    uint16_t num_samples;
+    Vector3f gyro;
+    
+    hal.scheduler->suspend_timer_procs();
+    
+    gyro(_gyro_sum.x, _gyro_sum.y, _gyro_sum.z);
+    num_samples = _sum_count;
+    _gyro_sum.zero();
+    
+    _sum_count = 0;
+    hal.scheduler->resume_timer_procs();
+    
+    gyro *= _gyro_scale / num_samples;
+    
+    _publish_gyro(_gyro_instance, gyro);
 
     return true;
 }
@@ -350,8 +387,7 @@ void AP_InertialSensor_L3GD20::_read_data_transaction() {
               we waited for DRDY, but did not see DRDY on all axes
               when we captured. That means a transfer error of some sort
              */
-            hal.console->println_P(
-                    PSTR("L3GD20: DRDY is not on in all axes, transfer error"));
+            hal.console->println("L3GD20: DRDY is not on in all axes, transfer error");
             return;
         }
 #endif
@@ -399,10 +435,10 @@ void AP_InertialSensor_L3GD20::_register_write_check(uint8_t reg, uint8_t val)
     _register_write(reg, val);
     readed = _register_read(reg);
     if (readed != val){
-	hal.console->printf_P(PSTR("Values doesn't match; written: %02x; read: %02x "), val, readed);
+        hal.console->printf("Values doesn't match; written: %02x; read: %02x ", val, readed);
     }
 #if L3GD20_DEBUG
-    hal.console->printf_P(PSTR("Values written: %02x; readed: %02x "), val, readed);
+    hal.console->printf("Values written: %02x; readed: %02x ", val, readed);
 #endif
 }
 
@@ -594,7 +630,7 @@ bool AP_InertialSensor_L3GD20::_hardware_init(Sample_rate sample_rate)
 float AP_InertialSensor_L3GD20::get_gyro_drift_rate(void)
 {
     // 0.5 degrees/second/minute
-    return ToRad(0.5/60);
+    return ToRad(0.5f/60);
 }
 
 // return true if a sample is available
@@ -610,11 +646,11 @@ bool AP_InertialSensor_L3GD20::_sample_available()
 // dump all config registers - used for debug
 void AP_InertialSensor_L3GD20::_dump_registers(void)
 {
-    hal.console->println_P(PSTR("L3GD20 registers"));
+    hal.console->println("L3GD20 registers");
     if (_spi_sem->take(100)) {
         for (uint8_t reg=ADDR_WHO_AM_I; reg<=56; reg++) { // 0x38 = 56
             uint8_t v = _register_read(reg);
-            hal.console->printf_P(PSTR("%02x:%02x "), (unsigned)reg, (unsigned)v);
+            hal.console->printf("%02x:%02x ", (unsigned)reg, (unsigned)v);
             if ((reg - (ADDR_WHO_AM_I-1)) % 16 == 0) {
                 hal.console->println();
             }
@@ -630,6 +666,6 @@ void AP_InertialSensor_L3GD20::_dump_registers(void)
 float AP_InertialSensor_L3GD20::get_delta_time() const
 {
     // the sensor runs at 200Hz
-    return 0.005 * _num_samples;
+    return 0.005f * _num_samples;
 }
 #endif

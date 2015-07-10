@@ -4,7 +4,7 @@
 #include <AP_HAL_Linux.h>
 #include <AP_ADC.h>
 
-#define RASPILOT_ADC_MAX_CHANNELS 6
+#define RASPILOT_ADC_MAX_CHANNELS 8
 
 class RaspilotAnalogSource: public AP_HAL::AnalogSource {
 public:
@@ -36,7 +36,9 @@ protected:
     AP_HAL::AnalogSource *_vcc_pin_analog_source;
     
 private:
-    AP_ADC_ADS1115 *_adc;
+    AP_HAL::SPIDeviceDriver *_spi;
+    AP_HAL::Semaphore *_spi_sem;
+    
     RaspilotAnalogSource *_channels[RASPILOT_ADC_MAX_CHANNELS];
 
     uint8_t _channels_number;

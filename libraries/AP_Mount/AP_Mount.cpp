@@ -9,6 +9,7 @@
 #include <AP_Mount_MAVLink.h>
 #include <AP_Mount_Alexmos.h>
 #include <AP_Mount_SToRM32.h>
+#include <AP_Mount_SToRM32_serial.h>
 
 const AP_Param::GroupInfo AP_Mount::var_info[] PROGMEM = {
     // @Param: _DEFLT_MODE
@@ -195,9 +196,82 @@ const AP_Param::GroupInfo AP_Mount::var_info[] PROGMEM = {
     // @Param: _TYPE
     // @DisplayName: Mount Type
     // @Description: Mount Type (None, Servo or MAVLink)
-    // @Values: 0:None, 1:Servo, 2:MAVLink, 3:Alexmos Serial, 4:SToRM32
+    // @Values: 0:None, 1:Servo, 2:MAVLink, 3:Alexmos Serial, 4:SToRM32 MAVLink, 5:SToRM32 Serial
     // @User: Standard
     AP_GROUPINFO("_TYPE", 19, AP_Mount, state[0]._type, 0),
+
+    // @Param: _OFF_JNT_X
+    // @DisplayName: MAVLink Mount's roll angle offsets
+    // @Description: MAVLink Mount's roll angle offsets
+    // @Units: radians
+    // @Range: 0 0.5
+    // @User: Advanced
+
+    // @Param: _OFF_JNT_Y
+    // @DisplayName: MAVLink Mount's pitch angle offsets
+    // @Description: MAVLink Mount's pitch angle offsets
+    // @Units: radians
+    // @Range: 0 0.5
+    // @User: Advanced
+
+    // @Param: _OFF_JNT_Z
+    // @DisplayName: MAVLink Mount's yaw angle offsets
+    // @Description: MAVLink Mount's yaw angle offsets
+    // @Units: radians
+    // @Range: 0 0.5
+    // @User: Advanced
+    AP_GROUPINFO("_OFF_JNT", 20, AP_Mount, state[0]._gimbalParams.joint_angles_offsets, 0),
+
+    // @Param: _OFF_ACC_X
+    // @DisplayName: MAVLink Mount's roll velocity offsets
+    // @Description: MAVLink Mount's roll velocity offsets
+    // @Units: m/s
+    // @Range: 0 2
+    // @User: Advanced
+
+    // @Param: _OFF_ACC_Y
+    // @DisplayName: MAVLink Mount's pitch velocity offsets
+    // @Description: MAVLink Mount's pitch velocity offsets
+    // @Units: m/s
+    // @Range: 0 2
+    // @User: Advanced
+
+    // @Param: _OFF_ACC_Z
+    // @DisplayName: MAVLink Mount's yaw velocity offsets
+    // @Description: MAVLink Mount's yaw velocity offsets
+    // @Units: m/s
+    // @Range: 0 2
+    // @User: Advanced
+    AP_GROUPINFO("_OFF_ACC",  21, AP_Mount, state[0]._gimbalParams.delta_velocity_offsets, 0),
+
+    // @Param: _OFF_GYRO_X
+    // @DisplayName: MAVLink Mount's roll gyro offsets
+    // @Description: MAVLink Mount's roll gyro offsets
+    // @Units: radians/sec
+    // @Range: 0 0.5
+    // @User: Advanced
+
+    // @Param: _OFF_GYRO_Y
+    // @DisplayName: MAVLink Mount's pitch gyro offsets
+    // @Description: MAVLink Mount's pitch gyro offsets
+    // @Units: radians/sec
+    // @Range: 0 0.5
+    // @User: Advanced
+
+    // @Param: _OFF_GYRO_Z
+    // @DisplayName: MAVLink Mount's yaw gyro offsets
+    // @Description: MAVLink Mount's yaw gyro offsets
+    // @Units: radians/sec
+    // @Range: 0 0.5
+    // @User: Advanced
+    AP_GROUPINFO("_OFF_GYRO", 22, AP_Mount, state[0]._gimbalParams.delta_angles_offsets, 0),
+
+    // @Param: _K_RATE
+    // @DisplayName: MAVLink Mount's rate gain
+    // @Description: MAVLink Mount's rate gain
+    // @Range: 0 10
+    // @User: Advanced
+    AP_GROUPINFO("_K_RATE", 23, AP_Mount, state[0]._gimbalParams.K_gimbalRate, 5.0f),
 
     // 20 ~ 24 reserved for future parameters
 
@@ -378,7 +452,7 @@ const AP_Param::GroupInfo AP_Mount::var_info[] PROGMEM = {
     // @Param: 2_TYPE
     // @DisplayName: Mount2 Type
     // @Description: Mount Type (None, Servo or MAVLink)
-    // @Values: 0:None, 1:Servo, 2:MAVLink, 3:Alexmos Serial, 4:SToRM32
+    // @Values: 0:None, 1:Servo, 2:MAVLink, 3:Alexmos Serial, 4:SToRM32 MAVLink, 5:SToRM32 Serial
     // @User: Standard
     AP_GROUPINFO("2_TYPE",           42, AP_Mount, state[1]._type, 0),
 #endif // AP_MOUNT_MAX_INSTANCES > 1
@@ -386,7 +460,7 @@ const AP_Param::GroupInfo AP_Mount::var_info[] PROGMEM = {
     AP_GROUPEND
 };
 
-AP_Mount::AP_Mount(const AP_AHRS_MOUNT &ahrs, const struct Location &current_loc) :
+AP_Mount::AP_Mount(const AP_AHRS_TYPE &ahrs, const struct Location &current_loc) :
     _ahrs(ahrs),
     _current_loc(current_loc),
     _num_instances(0),
@@ -407,6 +481,15 @@ void AP_Mount::init(const AP_SerialManager& serial_manager)
     // check init has not been called before
     if (_num_instances != 0) {
         return;
+    }
+
+    // default mount to servo mount if rc output channels to control roll, tilt or pan have been defined
+    if (!state[0]._type.load()) {
+        if (RC_Channel_aux::function_assigned(RC_Channel_aux::Aux_servo_function_t::k_mount_pan) ||
+            RC_Channel_aux::function_assigned(RC_Channel_aux::Aux_servo_function_t::k_mount_tilt) ||
+            RC_Channel_aux::function_assigned(RC_Channel_aux::Aux_servo_function_t::k_mount_roll)) {
+                state[0]._type.set_and_save(Mount_Type_Servo);
+        }
     }
 
     // primary is reset to the first instantiated mount
@@ -433,9 +516,14 @@ void AP_Mount::init(const AP_SerialManager& serial_manager)
             _backends[instance] = new AP_Mount_Alexmos(*this, state[instance], instance);
             _num_instances++;
 
-        // check for SToRM32 mounts
+        // check for SToRM32 mounts using MAVLink protocol
         } else if (mount_type == Mount_Type_SToRM32) {
             _backends[instance] = new AP_Mount_SToRM32(*this, state[instance], instance);
+            _num_instances++;
+
+        // check for SToRM32 mounts using serial protocol
+        } else if (mount_type == Mount_Type_SToRM32_serial) {
+            _backends[instance] = new AP_Mount_SToRM32_serial(*this, state[instance], instance);
             _num_instances++;
         }
 
@@ -510,6 +598,17 @@ void AP_Mount::set_mode(uint8_t instance, enum MAV_MOUNT_MODE mode)
 
     // call backend's set_mode
     _backends[instance]->set_mode(mode);
+}
+
+// set_angle_targets - sets angle targets in degrees
+void AP_Mount::set_angle_targets(uint8_t instance, float roll, float tilt, float pan)
+{
+    if (instance >= AP_MOUNT_MAX_INSTANCES || _backends[instance] == NULL) {
+        return;
+    }
+
+    // send command to backend
+    _backends[instance]->set_angle_targets(roll, tilt, pan);
 }
 
 /// Change the configuration of the mount

@@ -12,14 +12,25 @@
 // enable debug to see a register dump on startup
 #define LSM303D_DEBUG 0
 
-class AP_InertialSensor_LSM303D: public AP_InertialSensor
+class AP_InertialSensor_LSM303D: public AP_InertialSensor_Backend
 {
 public:
 
-    AP_InertialSensor_LSM303D();
+    AP_InertialSensor_LSM303D(AP_InertialSensor &imu);
+    
+    // the rate that updates will be available to the application
+    enum Sample_rate {
+        RATE_50HZ  = 50,
+        RATE_100HZ = 100,
+        RATE_200HZ = 200,
+        RATE_400HZ = 400
+    };
 
     /* Concrete implementation of AP_InertialSensor functions: */
     bool                update();
+    
+    // detect the sensor
+    static AP_InertialSensor_Backend *detect(AP_InertialSensor &imu);
 
     // wait for a sample to be available, with timeout in milliseconds
     bool                wait_for_sample(uint16_t timeout_ms);
@@ -35,6 +46,8 @@ protected:
     uint16_t                    _init_sensor( Sample_rate sample_rate );
 
 private:
+    uint8_t _accel_instance;
+    
     AP_HAL::DigitalSource *_drdy_pin_x;
     AP_HAL::DigitalSource *_drdy_pin_m;
     uint8_t         _accel_range_m_s2;

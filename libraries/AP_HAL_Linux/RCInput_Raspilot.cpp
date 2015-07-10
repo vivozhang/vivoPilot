@@ -13,21 +13,25 @@
 
 #include "RCInput_Raspilot.h"
 
+#include "protocol.h"
+
 static const AP_HAL::HAL& hal = AP_HAL_BOARD_DRIVER;
 
 using namespace Linux;
 
 void LinuxRCInput_Raspilot::init(void*)
 {
-    _i2c_sem = hal.i2c->get_semaphore();
-    if (_i2c_sem == NULL) {
+    _spi = hal.spi->device(AP_HAL::SPIDevice_RASPIO);
+    _spi_sem = _spi->get_semaphore();
+    
+    if (_spi_sem == NULL) {
         hal.scheduler->panic(PSTR("PANIC: RCIutput_Raspilot did not get "
-                                  "valid I2C semaphore!"));
+                                  "valid SPI semaphore!"));
         return; // never reached
     }
     
     // start the timer process to read samples
-    hal.scheduler->register_timer_process(AP_HAL_MEMBERPROC(&LinuxRCInput_Raspilot::_poll_data));
+    hal.scheduler->register_timer_process(FUNCTOR_BIND_MEMBER(&LinuxRCInput_Raspilot::_poll_data, void));
 }
 
 void LinuxRCInput_Raspilot::_poll_data(void)
@@ -39,18 +43,25 @@ void LinuxRCInput_Raspilot::_poll_data(void)
     
     _last_timer = hal.scheduler->micros();
     
-    if (!_i2c_sem->take_nonblocking()) {
+    if (!_spi_sem->take_nonblocking()) {
         return;
     }
+
+    struct IOPacket _dma_packet_tx, _dma_packet_rx;
+    uint16_t count = LINUX_RC_INPUT_NUM_CHANNELS;
+    _dma_packet_tx.count_code = count | PKT_CODE_READ;
+    _dma_packet_tx.page = 4;
+    _dma_packet_tx.offset = 0;
+    _dma_packet_tx.crc = 0;
+    _dma_packet_tx.crc = crc_packet(&_dma_packet_tx);
+    /* set raspilotio to read reg4 */
+    _spi->transaction((uint8_t *)&_dma_packet_tx, (uint8_t *)&_dma_packet_rx, sizeof(_dma_packet_tx));
+    /* get reg4 data from raspilotio */
+    _spi->transaction((uint8_t *)&_dma_packet_tx, (uint8_t *)&_dma_packet_rx, sizeof(_dma_packet_tx));
     
-    uint8_t data[28];
+    _process_rpio_data(_dma_packet_rx.regs);
     
-    if ( hal.i2c->read_rpio(RPILOTIO_ADDRESS, 4, 0, 28, data) == 0 )
-    {
-        _process_rpio_bytes(data);
-    }
-    
-    _i2c_sem->give();
+    _spi_sem->give();
 }
 
 #endif // CONFIG_HAL_BOARD_SUBTYPE

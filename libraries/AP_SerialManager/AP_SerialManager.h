@@ -58,10 +58,14 @@
 #define AP_SERIALMANAGER_GPS_BUFSIZE_TX         16
 
 // AlexMos Gimbal protocol default baud rates and buffer sizes
-// we need a 256 byte buffer for some GPS types (eg. UBLOX)
 #define AP_SERIALMANAGER_ALEXMOS_BAUD           115200
 #define AP_SERIALMANAGER_ALEXMOS_BUFSIZE_RX     128
 #define AP_SERIALMANAGER_ALEXMOS_BUFSIZE_TX     128
+
+#define AP_SERIALMANAGER_SToRM32_BAUD           115200
+#define AP_SERIALMANAGER_SToRM32_BUFSIZE_RX     128
+#define AP_SERIALMANAGER_SToRM32_BUFSIZE_TX     128
+
 
 class AP_SerialManager {
 
@@ -69,13 +73,14 @@ public:
 
     enum SerialProtocol {
         SerialProtocol_Console = 0,
-        SerialProtocol_MAVLink1 = 1,
-        SerialProtocol_MAVLink2 = 2,
+        SerialProtocol_MAVLink = 1,
+        SerialProtocol_MAVLink2 = 2,    // do not use - use MAVLink and provide instance of 1
         SerialProtocol_FRSky_DPort = 3,
         SerialProtocol_FRSky_SPort = 4,
         SerialProtocol_GPS = 5,
-        SerialProtocol_GPS2 = 6,
-        SerialProtocol_AlexMos = 7
+        SerialProtocol_GPS2 = 6,        // do not use - use GPS and provide instance of 1
+        SerialProtocol_AlexMos = 7,
+        SerialProtocol_SToRM32 = 8,
     };
 
     // Constructor
@@ -87,24 +92,27 @@ public:
     // init - initialise serial ports
     void init();
 
-    // find_serial - searches available serial ports for the first instance that allows the given protocol
+    // find_serial - searches available serial ports that allows the given protocol
+    //  instance should be zero if searching for the first instance, 1 for the second, etc
     //  returns uart on success, NULL if a serial port cannot be found
-    AP_HAL::UARTDriver *find_serial(enum SerialProtocol protocol) const;
+    AP_HAL::UARTDriver *find_serial(enum SerialProtocol protocol, uint8_t instance) const;
 
     // find_baudrate - searches available serial ports for the first instance that allows the given protocol
+    //  instance should be zero if searching for the first instance, 1 for the second, etc
     //  returns the baudrate of that protocol on success, 0 if a serial port cannot be found
-    uint32_t find_baudrate(enum SerialProtocol protocol) const;
+    uint32_t find_baudrate(enum SerialProtocol protocol, uint8_t instance) const;
 
-    // get_mavlink_channel - provides the mavlink channel associated with a given protocol
+    // get_mavlink_channel - provides the mavlink channel associated with a given protocol (and instance)
+    //  instance should be zero if searching for the first instance, 1 for the second, etc
     //  returns true if a channel is found, false if not
-    bool get_mavlink_channel(enum SerialProtocol protocol, mavlink_channel_t &mav_chan) const;
+    bool get_mavlink_channel(enum SerialProtocol protocol, uint8_t instance, mavlink_channel_t &mav_chan) const;
 
     // set_blocking_writes_all - sets block_writes on or off for all serial channels
     void set_blocking_writes_all(bool blocking);
 
     // set_console_baud - sets the console's baud rate to the rate specified by the protocol
     //  used on APM2 to switch the console between the console baud rate (115200) and the SERIAL1 baud rate (user configurable)
-    void set_console_baud(enum SerialProtocol protocol) const;
+    void set_console_baud(enum SerialProtocol protocol, uint8_t instance) const;
 
     // parameter var table
     static const struct AP_Param::GroupInfo var_info[];
@@ -119,6 +127,9 @@ private:
     } state[SERIALMANAGER_NUM_PORTS];
 
     uint32_t map_baudrate(int32_t rate) const;
+
+    // protocol_match - returns true if the protocols match
+    bool protocol_match(enum SerialProtocol protocol1, enum SerialProtocol protocol2) const;
 };
 
 #endif // _AP_SERIALMANAGER_

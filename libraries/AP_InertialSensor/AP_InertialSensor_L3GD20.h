@@ -12,11 +12,22 @@
 // enable debug to see a register dump on startup
 #define L3GD20_DEBUG 0
 
-class AP_InertialSensor_L3GD20 : public AP_InertialSensor
+class AP_InertialSensor_L3GD20 : public AP_InertialSensor_Backend
 {
 public:
 
-    AP_InertialSensor_L3GD20();
+    AP_InertialSensor_L3GD20(AP_InertialSensor &imu);
+    
+    // detect the sensor
+    static AP_InertialSensor_Backend *detect(AP_InertialSensor &imu);
+    
+    // the rate that updates will be available to the application
+    enum Sample_rate {
+        RATE_50HZ  = 50,
+        RATE_100HZ = 100,
+        RATE_200HZ = 200,
+        RATE_400HZ = 400
+    };
 
     /* Concrete implementation of AP_InertialSensor functions: */
     bool                update();
@@ -37,6 +48,8 @@ protected:
     uint16_t                    _init_sensor( Sample_rate sample_rate );
 
 private:
+    uint8_t _gyro_instance;
+    
     AP_HAL::DigitalSource *_drdy_pin;
 
     bool                 _sample_available();
@@ -77,12 +90,12 @@ private:
     // the sum of the values since last read
     Vector3l _gyro_sum;
     volatile int16_t _sum_count;
-
+/*
 public:
 
 #if L3GD20_DEBUG
     void						_dump_registers(void);
-#endif
+#endif*/
 };
 
 #endif // __AP_INERTIAL_SENSOR_L3GD20_H__

@@ -18,12 +18,15 @@ using namespace Linux;
 static LinuxUARTDriver uartADriver(true);
 #if CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_NAVIO
 static LinuxSPIUARTDriver uartBDriver;
-#elif CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_RASPILOT
-static LinuxSPIUARTDriver uartBDriver;
 #else
 static LinuxUARTDriver uartBDriver(false);
 #endif
+#if CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_RASPILOT
+static LinuxRPIOUARTDriver uartCDriver;
+#else
 static LinuxUARTDriver uartCDriver(false);
+#endif
+static LinuxUARTDriver uartEDriver(false);
 
 static LinuxSemaphore  i2cSemaphore;
 static LinuxI2CDriver  i2cDriver(&i2cSemaphore, "/dev/i2c-1");
@@ -51,7 +54,7 @@ static LinuxStorage storageDriver;
 #if CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_PXF || CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_ERLE || CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_BBBMINI
 static LinuxGPIO_BBB gpioDriver;
 /*
-  use the RPI gpio driver on Navio and Raspilot
+  use the RPI gpio driver on Navio
  */
 #elif CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_NAVIO || CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_RASPILOT
 static LinuxGPIO_RPI gpioDriver;
@@ -60,10 +63,12 @@ static Empty::EmptyGPIO gpioDriver;
 #endif
 
 /*
-  use the PRU based RCInput driver on ERLE, PXF and BBBMINI
+  use the PRU based RCInput driver on ERLE and PXF
  */
-#if CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_PXF || CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_ERLE || CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_BBBMINI
+#if CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_PXF || CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_ERLE
 static LinuxRCInput_PRU rcinDriver;
+#elif CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_BBBMINI
+static LinuxRCInput_AioPRU rcinDriver;
 #elif CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_NAVIO
 static LinuxRCInput_Navio rcinDriver;
 #elif CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_RASPILOT
@@ -75,15 +80,20 @@ static LinuxRCInput rcinDriver;
 #endif
 
 /*
-  use the PRU based RCOutput driver on ERLE, PXF and BBBMINI
+  use the PRU based RCOutput driver on ERLE and PXF
  */
-#if CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_PXF || CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_ERLE || CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_BBBMINI
+#if CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_PXF || CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_ERLE
 static LinuxRCOutput_PRU rcoutDriver;
+#elif CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_BBBMINI
+static LinuxRCOutput_AioPRU rcoutDriver;
 /*
-  use the PCA9685 based RCOutput driver on Navio and Raspilot
+  use the PCA9685 based RCOutput driver on Navio
  */
 #elif CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_NAVIO
 static LinuxRCOutput_Navio rcoutDriver;
+/*
+ use the STM32 based RCOutput driver on Raspilot
+ */
 #elif CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_RASPILOT
 static LinuxRCOutput_Raspilot rcoutDriver;
 #elif CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_ZYNQ
@@ -101,7 +111,7 @@ HAL_Linux::HAL_Linux() :
         &uartBDriver,
         &uartCDriver,
         NULL,            /* no uartD */
-        NULL,            /* no uartE */
+        &uartEDriver,
         &i2cDriver,
         &spiDeviceManager,
         &analogIn,
@@ -122,6 +132,7 @@ void _usage(void)
     printf("\t                  -B /dev/ttyS1\n");    
     printf("\t-tcp:             -C tcp:192.168.2.15:1243:wait\n");
     printf("\t                  -A tcp:11.0.0.2:5678\n");    
+    printf("\t                  -A udp:11.0.0.2:5678\n");    
 }
 
 void HAL_Linux::init(int argc,char* const argv[]) const 
@@ -130,7 +141,7 @@ void HAL_Linux::init(int argc,char* const argv[]) const
     /*
       parse command line options
      */
-    while ((opt = getopt(argc, argv, "A:B:C:h")) != -1) {
+    while ((opt = getopt(argc, argv, "A:B:C:E:h")) != -1) {
         switch (opt) {
         case 'A':
             uartADriver.set_device_path(optarg);
@@ -140,6 +151,9 @@ void HAL_Linux::init(int argc,char* const argv[]) const
             break;
         case 'C':
             uartCDriver.set_device_path(optarg);
+            break;
+        case 'E':
+            uartEDriver.set_device_path(optarg);
             break;
         case 'h':
             _usage();
@@ -155,7 +169,8 @@ void HAL_Linux::init(int argc,char* const argv[]) const
     i2c->begin();
     rcout->init(NULL);
     rcin->init(NULL);
-    uartA->begin(115200);
+    uartA->begin(115200);    
+    uartE->begin(115200);    
     spi->init(NULL);
     analogin->init(NULL);
     utilInstance.init(argc, argv);
