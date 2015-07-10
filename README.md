@@ -50,7 +50,7 @@
 　其它帮助文档：https://www.raspberrypi.org/documentation/<br>
 <br>
 或者可以百度，有很多中文教程。<br>
-<br>
+
 ###配置树莓派WiFi连接###
 编辑/etc/wpa_supplicant/wpa_supplicant.conf文件<br>
 　`sudo nano /etc/wpa_supplicant/wpa_supplicant.conf`<br>
