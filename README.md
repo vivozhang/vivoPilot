@@ -1,6 +1,12 @@
 #树莓派飞控RasPilot#
 
 ###硬件安装和接线###
+1 安装外壳。如下图，用铜柱和螺母将树莓派固定在底壳上。插上飞控扩展板，再用螺丝固定上壳。<br>
+![](https://github.com/raspilot/docs/blob/master/raspilot_p1.jpg)
+![](https://github.com/raspilot/docs/blob/master/raspilot_p2.jpg)<br>
+<br>
+2 接口说明：<br>
+<br>
 
 ###写入系统镜像到树莓派SD卡###
 树莓派官方的Linux系统实时性不适合运行飞控程序，因此要使用打了RT-patch的系统镜像。<br>
