@@ -28,8 +28,8 @@
 #define RANGEFINDER_PREARM_ALT_MAX_CM           200
 #define RANGEFINDER_PREARM_REQUIRED_CHANGE_CM   50
 
-class AP_RangeFinder_Backend; 
- 
+class AP_RangeFinder_Backend;
+
 class RangeFinder
 {
 public:
@@ -44,7 +44,8 @@ public:
         RangeFinder_TYPE_MBI2C  = 2,
         RangeFinder_TYPE_PLI2C  = 3,
         RangeFinder_TYPE_PX4    = 4,
-        RangeFinder_TYPE_PX4_PWM= 5
+        RangeFinder_TYPE_PX4_PWM= 5,
+        RangeFinder_TYPE_PX4FLOW= 6
     };
 
     enum RangeFinder_Function {
@@ -89,7 +90,7 @@ public:
     AP_Int16 _powersave_range;
 
     static const struct AP_Param::GroupInfo var_info[];
-    
+
     // Return the number of range finder instances
     uint8_t num_sensors(void) const {
         return num_instances;
@@ -101,7 +102,7 @@ public:
     // update state of all rangefinders. Should be called at around
     // 10Hz from main loop
     void update(void);
-    
+
 #define _RangeFinder_STATE(instance) state[instance]
 
     uint16_t distance_cm(uint8_t instance) const {
@@ -181,7 +182,7 @@ private:
     float estimated_terrain_height;
 
     void detect_instance(uint8_t instance);
-    void update_instance(uint8_t instance);  
+    void update_instance(uint8_t instance);
 
     void update_pre_arm_check(uint8_t instance);
 };

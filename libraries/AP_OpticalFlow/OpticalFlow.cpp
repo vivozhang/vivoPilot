@@ -44,6 +44,8 @@ const AP_Param::GroupInfo OpticalFlow::var_info[] PROGMEM = {
 OpticalFlow::OpticalFlow(void) :
 #if CONFIG_HAL_BOARD == HAL_BOARD_PX4
     backend(new AP_OpticalFlow_PX4(*this)),
+#elif CONFIG_HAL_BOARD == HAL_BOARD_LINUX && CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_RASPILOT
+    backend(new AP_OpticalFlow_I2C(*this)),
 #elif CONFIG_HAL_BOARD == HAL_BOARD_SITL
     backend(new AP_OpticalFlow_HIL(*this)),
 #else
@@ -78,8 +80,8 @@ void OpticalFlow::update(void)
 }
 
 void OpticalFlow::setHIL(const struct OpticalFlow::OpticalFlow_state &state)
-{ 
+{
     if (backend) {
-        backend->_update_frontend(state); 
+        backend->_update_frontend(state);
     }
 }

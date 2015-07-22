@@ -20,13 +20,14 @@
 #include "AP_RangeFinder_MaxsonarI2CXL.h"
 #include "AP_RangeFinder_PX4.h"
 #include "AP_RangeFinder_PX4_PWM.h"
+#include "AP_RangeFinder_PX4FLOW.h"
 
 // table of user settable parameters
 const AP_Param::GroupInfo RangeFinder::var_info[] PROGMEM = {
     // @Param: _TYPE
     // @DisplayName: Rangefinder type
     // @Description: What type of rangefinder device that is connected
-    // @Values: 0:None,1:Analog,2:APM2-MaxbotixI2C,3:APM2-PulsedLightI2C,4:PX4-I2C,5:PX4-PWM
+    // @Values: 0:None,1:Analog,2:APM2-MaxbotixI2C,3:APM2-PulsedLightI2C,4:PX4-I2C,5:PX4-PWM,6:PX4FLOW I2C
     AP_GROUPINFO("_TYPE",    0, RangeFinder, _type[0], 0),
 
     // @Param: _PIN
@@ -110,7 +111,7 @@ const AP_Param::GroupInfo RangeFinder::var_info[] PROGMEM = {
     // @Param: 2_TYPE
     // @DisplayName: Second Rangefinder type
     // @Description: What type of rangefinder device that is connected
-    // @Values: 0:None,1:Analog,2:APM2-MaxbotixI2C,3:APM2-PulsedLightI2C,4:PX4-I2C,5:PX4-PWM
+    // @Values: 0:None,1:Analog,2:APM2-MaxbotixI2C,3:APM2-PulsedLightI2C,4:PX4-I2C,5:PX4-PWM,6:PX4FLOW I2C
     AP_GROUPINFO("2_TYPE",    12, RangeFinder, _type[1], 0),
 
     // @Param: 2_PIN
@@ -252,15 +253,15 @@ void RangeFinder::update(void)
         }
     }
 }
-    
+
 /*
-  detect if an instance of a rangefinder is connected. 
+  detect if an instance of a rangefinder is connected.
  */
 void RangeFinder::detect_instance(uint8_t instance)
 {
     uint8_t type = _type[instance];
 #if CONFIG_HAL_BOARD == HAL_BOARD_PX4 || CONFIG_HAL_BOARD == HAL_BOARD_VRBRAIN
-    if (type == RangeFinder_TYPE_PLI2C || 
+    if (type == RangeFinder_TYPE_PLI2C ||
         type == RangeFinder_TYPE_MBI2C) {
         // I2C sensor types are handled by the PX4Firmware code
         type = RangeFinder_TYPE_PX4;
@@ -272,7 +273,7 @@ void RangeFinder::detect_instance(uint8_t instance)
             drivers[instance] = new AP_RangeFinder_PulsedLightLRF(*this, instance, state[instance]);
             return;
         }
-    } 
+    }
     if (type == RangeFinder_TYPE_MBI2C) {
         if (AP_RangeFinder_MaxsonarI2CXL::detect(*this, instance)) {
             state[instance].instance = instance;
@@ -294,6 +295,15 @@ void RangeFinder::detect_instance(uint8_t instance)
             drivers[instance] = new AP_RangeFinder_PX4_PWM(*this, instance, state[instance]);
             return;
         }
+    }
+#endif
+#if CONFIG_HAL_BOARD == HAL_BOARD_LINUX && CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_RASPILOT
+    if (type == RangeFinder_TYPE_PX4FLOW || type == RangeFinder_TYPE_PX4) {
+        if (AP_RangeFinder_PX4FLOW::detect(*this, instance)) {
+            state[instance].instance = instance;
+            drivers[instance] = new AP_RangeFinder_PX4FLOW(*this, instance, state[instance]);
+            return;
+          }
     }
 #endif
     if (type == RangeFinder_TYPE_ANALOG) {
