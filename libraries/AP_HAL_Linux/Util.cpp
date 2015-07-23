@@ -13,9 +13,9 @@ extern const AP_HAL::HAL& hal;
 #include "Util.h"
 using namespace Linux;
 
-
 static int state;
 ToneAlarm LinuxUtil::_toneAlarm;
+
 /**
    return commandline arguments, if available
 */
@@ -46,11 +46,11 @@ void LinuxUtil::_toneAlarm_timer_tick(){
     }else if(state == 3){
         state = 1;
     }
-    
+
     if(_toneAlarm.is_tune_comp()){
         state = 0;
     }
-    
+
 }
 
 void LinuxUtil::set_system_clock(uint64_t time_utc_usec)
@@ -59,8 +59,8 @@ void LinuxUtil::set_system_clock(uint64_t time_utc_usec)
     timespec ts;
     ts.tv_sec = time_utc_usec/1.0e6;
     ts.tv_nsec = (time_utc_usec % 1000000) * 1000;
-    clock_settime(CLOCK_REALTIME, &ts);    
-#endif    
+    clock_settime(CLOCK_REALTIME, &ts);
+#endif
 }
 
 bool LinuxUtil::is_chardev_node(const char *path)

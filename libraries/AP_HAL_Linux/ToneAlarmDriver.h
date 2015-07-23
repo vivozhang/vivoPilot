@@ -105,7 +105,7 @@
 #define     TONE_BATTERY_WARNING_SLOW_TUNE      6
 #define     TONE_BATTERY_WARNING_FAST_TUNE      7
 #define     TONE_GPS_WARNING_TUNE               8
-#define     TONE_ARMING_FAILURE_TUNE            9    
+#define     TONE_ARMING_FAILURE_TUNE            9
 #define     TONE_PARACHUTE_RELEASE_TUNE         10
 
 #define TONE_NUMBER_OF_TUNES 11
