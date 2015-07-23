@@ -153,7 +153,7 @@ const AP_Param::GroupInfo Compass::var_info[] PROGMEM = {
     // @Param: PRIMARY
     // @DisplayName: Choose primary compass
     // @Description: If more than one compass is available this selects which compass is the primary. Normally 0=External, 1=Internal. If no External compass is attached this parameter is ignored
-    // @Values: 0:FirstCompass,1:SecondCompass
+    // @Values: 0:FirstCompass,1:SecondCompass,2:ThirdCompass
     // @User: Advanced
     AP_GROUPINFO("PRIMARY", 12, Compass, _primary, 0),
 #endif
@@ -275,7 +275,6 @@ const AP_Param::GroupInfo Compass::var_info[] PROGMEM = {
 // their values.
 //
 Compass::Compass(void) :
-    _last_update_usec(0),
     _backend_count(0),
     _compass_count(0),
     _board_orientation(ROTATION_NONE),
@@ -286,7 +285,8 @@ Compass::Compass(void) :
     AP_Param::setup_object_defaults(this, var_info);
     for (uint8_t i=0; i<COMPASS_MAX_BACKEND; i++) {
         _backends[i] = NULL;
-    }    
+        _state[i].last_update_usec = 0;
+    }
 
 #if COMPASS_MAX_INSTANCES > 1
     // default device ids to zero.  init() method will overwrite with the actual device ids
@@ -326,7 +326,7 @@ uint8_t Compass::register_compass(void)
 /*
   try to load a backend
  */
-void 
+void
 Compass::_add_backend(AP_Compass_Backend *(detect)(Compass &))
 {
     if (_backend_count == COMPASS_MAX_BACKEND) {
@@ -341,7 +341,7 @@ Compass::_add_backend(AP_Compass_Backend *(detect)(Compass &))
 /*
   detect available backends for this board
  */
-void 
+void
 Compass::_detect_backends(void)
 {
     if (_hil_mode) {
@@ -352,17 +352,17 @@ Compass::_detect_backends(void)
 #if CONFIG_HAL_BOARD == HAL_BOARD_LINUX && CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_RASPILOT
     _add_backend(AP_Compass_HMC5843::detect);
     _add_backend(AP_Compass_LSM303D::detect);
-#elif CONFIG_HAL_BOARD == HAL_BOARD_LINUX && CONFIG_HAL_BOARD_SUBTYPE != HAL_BOARD_SUBTYPE_LINUX_NONE
+#elif CONFIG_HAL_BOARD == HAL_BOARD_LINUX && CONFIG_HAL_BOARD_SUBTYPE != HAL_BOARD_SUBTYPE_LINUX_NONE && CONFIG_HAL_BOARD_SUBTYPE != HAL_BOARD_SUBTYPE_LINUX_BEBOP
     _add_backend(AP_Compass_HMC5843::detect);
-    _add_backend(AP_Compass_AK8963_MPU9250::detect);
+    _add_backend(AP_Compass_AK8963::detect_mpu9250);
 #elif HAL_COMPASS_DEFAULT == HAL_COMPASS_HIL
     _add_backend(AP_Compass_HIL::detect);
 #elif HAL_COMPASS_DEFAULT == HAL_COMPASS_HMC5843
     _add_backend(AP_Compass_HMC5843::detect);
+#elif  HAL_COMPASS_DEFAULT == HAL_COMPASS_AK8963_I2C && HAL_INS_AK8963_I2C_BUS == 1
+    _add_backend(AP_Compass_AK8963::detect_i2c1);
 #elif HAL_COMPASS_DEFAULT == HAL_COMPASS_PX4 || HAL_COMPASS_DEFAULT == HAL_COMPASS_VRBRAIN
     _add_backend(AP_Compass_PX4::detect);
-#elif HAL_COMPASS_DEFAULT == HAL_COMPASS_AK8963_MPU9250
-    _add_backend(AP_Compass_AK8963_MPU9250::detect);
 #else
     #error Unrecognised HAL_COMPASS_TYPE setting
 #endif
@@ -373,22 +373,22 @@ Compass::_detect_backends(void)
     }
 }
 
-void 
+void
 Compass::accumulate(void)
-{    
+{
     for (uint8_t i=0; i< _backend_count; i++) {
         // call accumulate on each of the backend
         _backends[i]->accumulate();
     }
 }
 
-bool 
+bool
 Compass::read(void)
 {
     for (uint8_t i=0; i< _backend_count; i++) {
         // call read on each of the backend. This call updates field[i]
         _backends[i]->read();
-    }    
+    }
     for (uint8_t i=0; i < COMPASS_MAX_INSTANCES; i++) {
         _state[i].healthy = (hal.scheduler->millis() - _state[i].last_update_ms < 500);
     }
@@ -607,10 +607,10 @@ void Compass::setHIL(uint8_t instance, const Vector3f &mag)
 {
     _hil.field[instance] = mag;
     _hil.healthy[instance] = true;
-    _last_update_usec = hal.scheduler->micros();
+    _state[instance].last_update_usec = hal.scheduler->micros();
 }
 
-const Vector3f& Compass::getHIL(uint8_t instance) const 
+const Vector3f& Compass::getHIL(uint8_t instance) const
 {
     return _hil.field[instance];
 }
@@ -620,7 +620,7 @@ void Compass::_setup_earth_field(void)
 {
     // assume a earth field strength of 400
     _hil.Bearth(400, 0, 0);
-    
+
     // rotate _Bearth for inclination and declination. -66 degrees
     // is the inclination in Canberra, Australia
     Matrix3f R;

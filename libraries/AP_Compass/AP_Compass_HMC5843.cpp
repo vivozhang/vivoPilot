@@ -341,14 +341,15 @@ AP_Compass_HMC5843::init()
 	read();
 
 #if 0
-    hal.console->printf_P(PSTR("CalX: %.2f CalY: %.2f CalZ: %.2f\n"), 
+    hal.console->printf_P(PSTR("CalX: %.2f CalY: %.2f CalZ: %.2f\n"),
                           calibration[0], calibration[1], calibration[2]);
 #endif
 
     if (success) {
         // register the compass instance in the frontend
         _compass_instance = register_compass();
-        
+        set_dev_id(_compass_instance, _product_id);
+
 #if CONFIG_HAL_BOARD == HAL_BOARD_LINUX && CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_RASPILOT
         set_external(_compass_instance, true);
 #endif

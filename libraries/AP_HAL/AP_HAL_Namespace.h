@@ -26,7 +26,7 @@ namespace AP_HAL {
     class RCOutput;
     class Scheduler;
     class Semaphore;
-    
+
     class Util;
 
     /* Utility Classes */
@@ -34,7 +34,7 @@ namespace AP_HAL {
     class Stream;
     class BetterStream;
 
-    /* Typdefs for function pointers (Procedure, Member Procedure) 
+    /* Typdefs for function pointers (Procedure, Member Procedure)
 
        For member functions we use the FastDelegate delegates class
        which allows us to encapculate a member function as a type
@@ -55,7 +55,7 @@ namespace AP_HAL {
         SPIDevice_ADNS3080_SPI3     = 5,
         SPIDevice_MPU9250           = 6,
         SPIDevice_L3GD20            = 7,
-        SPIDevice_LSM303D           = 8,        
+        SPIDevice_LSM303D           = 8,
         SPIDevice_LSM9DS0_AM        = 9,
         SPIDevice_LSM9DS0_G         = 10,
         SPIDevice_Ublox             = 11,

@@ -33,6 +33,7 @@ namespace Linux {
     class LinuxRCOutput_Navio;
     class LinuxRCOutput_Raspilot;
     class LinuxRCOutput_ZYNQ;
+    class LinuxRCOutput_Bebop;
     class LinuxSemaphore;
     class LinuxScheduler;
     class LinuxUtil;
@@ -40,4 +41,3 @@ namespace Linux {
 }
 
 #endif // __AP_HAL_LINUX_NAMESPACE_H__
-

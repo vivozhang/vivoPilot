@@ -45,7 +45,7 @@ LinuxUARTDriver::LinuxUARTDriver(bool default_console) :
 /*
   set the tty device to use for this UART
  */
-void LinuxUARTDriver::set_device_path(char *path)
+void LinuxUARTDriver::set_device_path(const char *path)
 {
     device_path = path;
 }
@@ -615,7 +615,7 @@ int LinuxUARTDriver::_read_fd(uint8_t *buf, uint16_t n)
 void LinuxUARTDriver::_timer_tick(void)
 {
     uint16_t n;
-    
+
     if (!_initialised) return;
 
     _in_timer = true;

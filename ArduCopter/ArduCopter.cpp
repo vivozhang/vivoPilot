@@ -116,7 +116,6 @@ const AP_Scheduler::Task Copter::scheduler_tasks[] PROGMEM = {
     { SCHED_TASK(update_notify),         8,     90 },
     { SCHED_TASK(one_hz_loop),         400,    100 },
     { SCHED_TASK(ekf_check),            40,     75 },
-    { SCHED_TASK(crash_check),          40,     75 },
     { SCHED_TASK(landinggear_update),   40,     75 },
     { SCHED_TASK(lost_vehicle_check),   40,     50 },
     { SCHED_TASK(gcs_check_input),       1,    180 },
@@ -166,7 +165,7 @@ void Copter::setup()
     init_ardupilot();
 
     // initialise the main loop scheduler
-    scheduler.init(&scheduler_tasks[0], sizeof(scheduler_tasks)/sizeof(scheduler_tasks[0]));
+    scheduler.init(&scheduler_tasks[0], ARRAY_SIZE(scheduler_tasks));
 
     // setup initial performance counters
     perf_info_reset();
@@ -262,14 +261,22 @@ void Copter::fast_loop()
     // --------------------
     read_inertia();
 
+    // check if ekf has reset target heading
+    check_ekf_yaw_reset();
+
     // run the attitude controllers
     update_flight_mode();
 
     // update home from EKF if necessary
     update_home_from_EKF();
 
-    // check if we've landed
-    update_land_detector();
+    // check if we've landed or crashed
+    update_land_and_crash_detectors();
+
+    // log sensor health
+    if (should_log(MASK_LOG_ANY)) {
+        Log_Sensor_Health();
+    }
 }
 
 // rc_loops - reads user input from transmitter/receiver
@@ -366,6 +373,9 @@ void Copter::ten_hz_logging_loop()
     if (should_log(MASK_LOG_IMU) || should_log(MASK_LOG_IMU_FAST) || should_log(MASK_LOG_IMU_RAW)) {
         DataFlash.Log_Write_Vibration(ins);
     }
+#if FRAME_CONFIG == HELI_FRAME
+    Log_Write_Heli();
+#endif
 }
 
 // fifty_hz_logging_loop
@@ -390,7 +400,7 @@ void Copter::fifty_hz_logging_loop()
     }
 
     // log IMU data if we're not already logging at the higher rate
-    if (should_log(MASK_LOG_IMU) && !should_log(MASK_LOG_IMU_FAST)) {
+    if (should_log(MASK_LOG_IMU) && !(should_log(MASK_LOG_IMU_FAST) || should_log(MASK_LOG_IMU_RAW))) {
         DataFlash.Log_Write_IMU(ins);
     }
 #endif
@@ -400,8 +410,11 @@ void Copter::fifty_hz_logging_loop()
 // should be run at the MAIN_LOOP_RATE
 void Copter::full_rate_logging_loop()
 {
-    if (should_log(MASK_LOG_IMU_FAST)) {
+    if (should_log(MASK_LOG_IMU_FAST) && !should_log(MASK_LOG_IMU_RAW)) {
         DataFlash.Log_Write_IMU(ins);
+    }
+    if (should_log(MASK_LOG_IMU_FAST) || should_log(MASK_LOG_IMU_RAW)) {
+        DataFlash.Log_Write_IMUDT(ins);
     }
 }
 
@@ -453,8 +466,12 @@ void Copter::one_hz_loop()
         // check the user hasn't updated the frame orientation
         motors.set_frame_orientation(g.frame_orientation);
 
+#if FRAME_CONFIG != HELI_FRAME
         // set all throttle channel settings
         motors.set_throttle_range(g.throttle_min, channel_throttle->radio_min, channel_throttle->radio_max);
+        // set hover throttle
+        motors.set_hover_throttle(g.throttle_mid);
+#endif
     }
 
     // update assigned functions and enable auxiliar servos

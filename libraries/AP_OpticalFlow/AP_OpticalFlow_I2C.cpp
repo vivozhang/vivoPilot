@@ -83,9 +83,9 @@ void AP_OpticalFlow_I2C::update(void)
 
     uint8_t val[I2C_INTEGRAL_FRAME_SIZE] = { 0 };
 
-    /*if (hal.scheduler->micros() - _last_timestamp < 100000) {
+    if (hal.scheduler->micros() - _last_timestamp < 100000) {
         return;
-    }*/
+    }
 
     // get pointer to i2c bus semaphore
     AP_HAL::Semaphore* i2c_sem = hal.i2c->get_semaphore();
@@ -114,11 +114,16 @@ void AP_OpticalFlow_I2C::update(void)
         float flowScaleFactorX = 1.0f + 0.001f * flowScaler.x;
         float flowScaleFactorY = 1.0f + 0.001f * flowScaler.y;
         float integralToRate = 1e6f / float(f_integral.integration_timespan);
+
+        float pixel_flow_x_integral = f_integral.pixel_flow_x_integral / 10000.0f;
+        float pixel_flow_y_integral = f_integral.pixel_flow_y_integral / 10000.0f;
+        float gyro_x_rate_integral  = f_integral.gyro_x_rate_integral / 10000.0f;
+        float gyro_y_rate_integral  = f_integral.gyro_y_rate_integral / 10000.0f;
         // rotate sensor measurements from sensor to body frame through sensor yaw angle
-        state.flowRate.x = flowScaleFactorX * integralToRate * (cosYaw * float(f_integral.pixel_flow_x_integral) - sinYaw * float(f_integral.pixel_flow_y_integral)) / 10000.0f; // rad/sec measured optically about the X body axis
-        state.flowRate.y = flowScaleFactorY * integralToRate * (sinYaw * float(f_integral.pixel_flow_x_integral) + cosYaw * float(f_integral.pixel_flow_y_integral)) / 10000.0f; // rad/sec measured optically about the Y body axis
-        state.bodyRate.x = integralToRate * (cosYaw * float(f_integral.gyro_x_rate_integral) - sinYaw * float(f_integral.gyro_y_rate_integral)) / 10000.0f; // rad/sec measured inertially about the X body axis
-        state.bodyRate.y = integralToRate * (sinYaw * float(f_integral.gyro_x_rate_integral) + cosYaw * float(f_integral.gyro_y_rate_integral)) / 10000.0f; // rad/sec measured inertially about the Y body axis
+        state.flowRate.x = flowScaleFactorX * integralToRate * (cosYaw * pixel_flow_x_integral - sinYaw * pixel_flow_y_integral); // rad/sec measured optically about the X body axis
+        state.flowRate.y = flowScaleFactorY * integralToRate * (sinYaw * pixel_flow_x_integral + cosYaw * pixel_flow_y_integral); // rad/sec measured optically about the Y body axis
+        state.bodyRate.x = integralToRate * (cosYaw * gyro_x_rate_integral - sinYaw * gyro_y_rate_integral); // rad/sec measured inertially about the X body axis
+        state.bodyRate.y = integralToRate * (sinYaw * gyro_x_rate_integral + cosYaw * gyro_y_rate_integral); // rad/sec measured inertially about the Y body axis
     } else {
         state.flowRate.zero();
         state.bodyRate.zero();

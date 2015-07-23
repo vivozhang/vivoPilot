@@ -25,7 +25,7 @@ public:
     size_t write(uint8_t c);
     size_t write(const uint8_t *buffer, size_t size);
 
-    void set_device_path(char *path);
+    void set_device_path(const char *path);
 
     virtual void _timer_tick(void);
 
@@ -36,6 +36,7 @@ private:
     int _wr_fd;
     bool _nonblocking_writes;
     bool _console;
+    volatile bool _in_timer;
     uint16_t _base_port;
     char *_ip;
     char *_flag;
@@ -57,9 +58,8 @@ private:
     uint64_t _last_write_time;    
 
 protected:
-    char *device_path;
+    const char *device_path;
     volatile bool _initialised;
-    volatile bool _in_timer;
     // we use in-task ring buffers to reduce the system call cost
     // of ::read() and ::write() in the main loop
     uint8_t *_readbuf;

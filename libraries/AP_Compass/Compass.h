@@ -18,7 +18,8 @@
 #define AP_COMPASS_TYPE_PX4             0x04
 #define AP_COMPASS_TYPE_VRBRAIN         0x05
 #define AP_COMPASS_TYPE_AK8963_MPU9250  0x06
-#define AP_COMPASS_TYPE_LSM303D         0x07
+#define AP_COMPASS_TYPE_AK8963_I2C      0x07
+#define AP_COMPASS_TYPE_LSM303D         0x08
 
 // motor compensation types (for use with motor_comp_enabled)
 #define AP_COMPASS_MOT_COMP_DISABLED    0x00
@@ -40,10 +41,10 @@
  */
 #if HAL_CPU_CLASS > HAL_CPU_CLASS_16
 #define COMPASS_MAX_INSTANCES 3
-#define COMPASS_MAX_BACKEND   3   
+#define COMPASS_MAX_BACKEND   3
 #else
 #define COMPASS_MAX_INSTANCES 1
-#define COMPASS_MAX_BACKEND   1   
+#define COMPASS_MAX_BACKEND   1
 #endif
 
 class Compass
@@ -63,7 +64,7 @@ public:
 
     /// Read the compass and update the mag_ variables.
     ///
-    bool read();    
+    bool read();
 
     /// use spare CPU cycles to accumulate values from the compass if
     /// possible (this method should also be implemented in the backends)
@@ -235,7 +236,7 @@ public:
     void        set_hil_mode(void) { _hil_mode = true; }
 
     // return last update time in microseconds
-    uint32_t last_update_usec(void) const { return _last_update_usec; }
+    uint32_t last_update_usec(void) const { return _state[get_primary()].last_update_usec; }
 
     static const struct AP_Param::GroupInfo var_info[];
 
@@ -257,9 +258,6 @@ private:
     void _add_backend(AP_Compass_Backend *(detect)(Compass &));
     void _detect_backends(void);
 
-    //< micros() time of last update
-    uint32_t _last_update_usec;
-
     // backend objects
     AP_Compass_Backend *_backends[COMPASS_MAX_BACKEND];
     uint8_t     _backend_count;
@@ -274,16 +272,16 @@ private:
     enum Rotation _board_orientation;
 
     // primary instance
-    AP_Int8     _primary;                           
+    AP_Int8     _primary;
 
     // declination in radians
     AP_Float    _declination;
 
     // enable automatic declination code
-    AP_Int8     _auto_declination;                  
+    AP_Int8     _auto_declination;
 
     // first-time-around flag used by offset nulling
-    bool        _null_init_done;                           
+    bool        _null_init_done;
 
     // used by offset correction
     static const uint8_t _mag_history_size = 20;
@@ -302,7 +300,7 @@ private:
         AP_Vector3f offset;
 
 #if COMPASS_MAX_INSTANCES > 1
-        // device id detected at init.  
+        // device id detected at init.
         // saved to eeprom when offsets are saved allowing ram &
         // eeprom values to be compared as consistency check
         AP_Int32    dev_id;
@@ -323,6 +321,7 @@ private:
 
         // when we last got data
         uint32_t    last_update_ms;
+        uint32_t    last_update_usec;
     } _state[COMPASS_MAX_INSTANCES];
 
     // if we want HIL only
