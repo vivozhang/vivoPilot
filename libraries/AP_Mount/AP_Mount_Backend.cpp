@@ -4,6 +4,18 @@
 
 extern const AP_HAL::HAL& hal;
 
+// set_angle_targets - sets angle targets in degrees
+void AP_Mount_Backend::set_angle_targets(float roll, float tilt, float pan)
+{
+    // set angle targets
+    _angle_ef_target_rad.x = radians(roll);
+    _angle_ef_target_rad.y = radians(tilt);
+    _angle_ef_target_rad.z = radians(pan);
+
+    // set the mode to mavlink targeting
+    _frontend.set_mode(_instance, MAV_MOUNT_MODE_MAVLINK_TARGETING);
+}
+
 // set_roi_target - sets target location that mount should attempt to point towards
 void AP_Mount_Backend::set_roi_target(const struct Location &target_loc)
 {
@@ -44,9 +56,7 @@ void AP_Mount_Backend::control_msg(mavlink_message_t *msg)
 
         // set earth frame target angles from mavlink message
         case MAV_MOUNT_MODE_MAVLINK_TARGETING:
-            _angle_ef_target_rad.x = radians(packet.input_b*0.01f);
-            _angle_ef_target_rad.y = radians(packet.input_a*0.01f);
-            _angle_ef_target_rad.z = radians(packet.input_c*0.01f);
+            set_angle_targets(packet.input_b*0.01f, packet.input_a*0.01f, packet.input_c*0.01f);
             break;
 
         // Load neutral position and start RC Roll,Pitch,Yaw control with stabilization
@@ -85,15 +95,15 @@ void AP_Mount_Backend::update_targets_from_rc()
         // allow pilot speed position input to come directly from an RC_Channel
         if (roll_rc_in && rc_ch(roll_rc_in)) {
             _angle_ef_target_rad.x += rc_ch(roll_rc_in)->norm_input_dz() * 0.0001f * _frontend._joystick_speed;
-            constrain_float(_angle_ef_target_rad.x, radians(_state._roll_angle_min*0.01f), radians(_state._roll_angle_max*0.01f));
+            _angle_ef_target_rad.x = constrain_float(_angle_ef_target_rad.x, radians(_state._roll_angle_min*0.01f), radians(_state._roll_angle_max*0.01f));
         }
         if (tilt_rc_in && (rc_ch(tilt_rc_in))) {
             _angle_ef_target_rad.y += rc_ch(tilt_rc_in)->norm_input_dz() * 0.0001f * _frontend._joystick_speed;
-            constrain_float(_angle_ef_target_rad.y, radians(_state._tilt_angle_min*0.01f), radians(_state._tilt_angle_max*0.01f));
+            _angle_ef_target_rad.y = constrain_float(_angle_ef_target_rad.y, radians(_state._tilt_angle_min*0.01f), radians(_state._tilt_angle_max*0.01f));
         }
         if (pan_rc_in && (rc_ch(pan_rc_in))) {
             _angle_ef_target_rad.z += rc_ch(pan_rc_in)->norm_input_dz() * 0.0001f * _frontend._joystick_speed;
-            constrain_float(_angle_ef_target_rad.z, radians(_state._pan_angle_min*0.01f), radians(_state._pan_angle_max*0.01f));
+            _angle_ef_target_rad.z = constrain_float(_angle_ef_target_rad.z, radians(_state._pan_angle_min*0.01f), radians(_state._pan_angle_max*0.01f));
         }
     } else {
         // allow pilot position input to come directly from an RC_Channel
@@ -139,6 +149,7 @@ void AP_Mount_Backend::calc_angle_to_location(const struct Location &target, Vec
 
     // pan calcs
     if (calc_pan) {
-        angles_to_target_rad.z = atan2f(GPS_vector_x, GPS_vector_y);
+        // calc absolute heading and then onvert to vehicle relative yaw
+        angles_to_target_rad.z = wrap_PI(atan2f(GPS_vector_x, GPS_vector_y) - _frontend._ahrs.yaw);
     }
 }

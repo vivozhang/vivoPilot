@@ -258,7 +258,7 @@ uint16_t AP_InertialSensor_LSM303D::_init_sensor( Sample_rate sample_rate )
     }
 
     // start the timer process to read samples
-    hal.scheduler->register_timer_process(AP_HAL_MEMBERPROC(&AP_InertialSensor_LSM303D::_poll_data));
+    hal.scheduler->register_timer_process(FUNCTOR_BIND_MEMBER(&AP_InertialSensor_LSM303D::_poll_data, void));
 
 #if LSM303D_DEBUG
     _dump_registers();
@@ -480,10 +480,10 @@ void AP_InertialSensor_LSM303D::_register_write_check(uint8_t reg, uint8_t val)
     _register_write(reg, val);
     readed = _register_read(reg);
     if (readed != val){
-	hal.console->printf_P(PSTR("Values doesn't match; written: %02x; read: %02x "), val, readed);
+        hal.console->printf("Values doesn't match; written: %02x; read: %02x ", val, readed);
     }
 #if LSM303D_DEBUG
-    hal.console->printf_P(PSTR("Values written: %02x; readed: %02x "), val, readed);
+    hal.console->printf("Values written: %02x; readed: %02x ", val, readed);
 #endif
 }
 
@@ -826,6 +826,6 @@ void AP_InertialSensor_LSM303D::_dump_registers(void)
 float AP_InertialSensor_LSM303D::get_delta_time() const
 {
     // the sensor runs at 200Hz
-    return 0.005 * _num_samples;
+    return 0.005f * _num_samples;
 }
 #endif

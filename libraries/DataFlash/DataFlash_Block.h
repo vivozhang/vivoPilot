@@ -7,11 +7,16 @@
 #ifndef DataFlash_block_h
 #define DataFlash_block_h
 
+#include <DataFlash_Backend.h>
+
 #include <stdint.h>
 
-class DataFlash_Block : public DataFlash_Class
+class DataFlash_Block : public DataFlash_Backend
 {
 public:
+    DataFlash_Block(DataFlash_Class &front) :
+        DataFlash_Backend(front) { }
+
     // initialisation
     virtual void Init(const struct LogStructure *structure, uint8_t num_types) = 0;
     virtual bool CardInserted(void) = 0;
@@ -34,7 +39,7 @@ public:
 #ifndef DATAFLASH_NO_CLI
     void LogReadProcess(uint16_t log_num,
                         uint16_t start_page, uint16_t end_page, 
-                        void (*print_mode)(AP_HAL::BetterStream *port, uint8_t mode),
+                        print_mode_fn print_mode,
                         AP_HAL::BetterStream *port);
     void DumpPageInfo(AP_HAL::BetterStream *port);
     void ShowDeviceInfo(AP_HAL::BetterStream *port);
@@ -93,7 +98,7 @@ private:
     void FinishWrite(void);
 
     // Read methods
-    void ReadBlock(void *pBuffer, uint16_t size);
+    bool ReadBlock(void *pBuffer, uint16_t size);
 
     // file numbers
     void SetFileNumber(uint16_t FileNumber);

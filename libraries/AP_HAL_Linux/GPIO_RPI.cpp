@@ -1,6 +1,6 @@
 #include <AP_HAL.h>
 
-#if CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_NAVIO || CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_RASPILOT
+#if CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_NAVIO
 
 #include "GPIO.h"
 #include <stdio.h>
@@ -29,12 +29,12 @@ int LinuxGPIO_RPI::getRaspberryPiVersion() const
     const char* v2 = "BCM2709";
     char* flag;
     FILE* fd;
-    
+
     fd = fopen("/proc/cpuinfo", "r");
-    
+
     while (fgets(buffer, MAX_SIZE_LINE, fd) != NULL) {
         flag = strstr(buffer, hardware_description_entry);
-        
+
         if (flag != NULL) {
             if (strstr(buffer, v2) != NULL) {
                 printf("Raspberry Pi 2 with BCM2709!\n");
@@ -47,7 +47,7 @@ int LinuxGPIO_RPI::getRaspberryPiVersion() const
             }
         }
     }
-    
+
     /* defaults to 1 */
     fprintf(stderr, "Could not detect RPi version, defaulting to 1\n");
     fclose(fd);
@@ -64,14 +64,14 @@ void LinuxGPIO_RPI::init()
     
     // mmap GPIO
     gpio_map = mmap(
-                    NULL,                 // Any adddress in our space will do
-                    BLOCK_SIZE,           // Map length
-                    PROT_READ|PROT_WRITE, // Enable reading & writting to mapped memory
-                    MAP_SHARED,           // Shared with other processes
-                    mem_fd,               // File to map
-                    address    // Offset to GPIO peripheral
-                    );
-    
+        NULL,                 // Any adddress in our space will do
+        BLOCK_SIZE,           // Map length
+        PROT_READ|PROT_WRITE, // Enable reading & writting to mapped memory
+        MAP_SHARED,           // Shared with other processes
+        mem_fd,               // File to map
+        address    // Offset to GPIO peripheral
+    );
+
     close(mem_fd); // No need to keep mem_fd open after mmap
     
     if (gpio_map == MAP_FAILED) {

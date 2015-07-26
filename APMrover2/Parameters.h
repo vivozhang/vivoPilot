@@ -70,6 +70,9 @@ public:
         k_param_serial2_baud_old,
         k_param_serial2_protocol,   // deprecated, can be deleted
         k_param_serial_manager,     // serial manager library
+        k_param_cli_enabled,
+        k_param_gcs3,
+        k_param_gcs_pid_mask,
 
         //
         // 130: Sensor parameters
@@ -213,6 +216,9 @@ public:
 	AP_Int16    sysid_my_gcs;
     AP_Int8     telem_delay;
     AP_Int8     skip_gyro_cal;
+#if CLI_ENABLED == ENABLED
+    AP_Int8     cli_enabled;
+#endif
 
     // sensor parameters
     AP_Int8	    compass_enabled; 
@@ -227,6 +233,7 @@ public:
     AP_Float    auto_kickstart;
     AP_Float    turn_max_g;
     AP_Int16    pivot_turn_angle;
+    AP_Int16    gcs_pid_mask;
 
     // RC channels
     RC_Channel      rc_1;

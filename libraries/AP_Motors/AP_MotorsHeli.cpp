@@ -27,7 +27,6 @@ extern const AP_HAL::HAL& hal;
 
 const AP_Param::GroupInfo AP_MotorsHeli::var_info[] PROGMEM = {
 
-
     // @Param: SV1_POS
     // @DisplayName: Servo 1 Position
     // @Description: Angular location of swash servo #1
@@ -143,6 +142,7 @@ const AP_Param::GroupInfo AP_MotorsHeli::var_info[] PROGMEM = {
     // @DisplayName: Collective-Yaw Mixing
     // @Description: Feed-forward compensation to automatically add rudder input when collective pitch is increased. Can be positive or negative depending on mechanics.
     // @Range: -10 10
+    // @Increment: 0.1
     AP_GROUPINFO("COLYAW",  14,     AP_MotorsHeli,  _collective_yaw_effect, 0),
 
     // @Param: GOV_SETPOINT
@@ -161,16 +161,12 @@ const AP_Param::GroupInfo AP_MotorsHeli::var_info[] PROGMEM = {
     // @User: Standard
     AP_GROUPINFO("RSC_MODE", 16, AP_MotorsHeli,     _rsc_mode, AP_MOTORS_HELI_RSC_MODE_CH8_PASSTHROUGH),
 
-    // 17 was RSC_RAMP_RATE which has been replaced by RSC_RAMP_TIME
-
     // @Param: FLYBAR_MODE
     // @DisplayName: Flybar Mode Selector
     // @Description: Flybar present or not.  Affects attitude controller used during ACRO flight mode
     // @Range: 0:NoFlybar 1:Flybar
     // @User: Standard
-    AP_GROUPINFO("FLYBAR_MODE", 18, AP_MotorsHeli,  _flybar_mode, AP_MOTORS_HELI_NOFLYBAR),
-
-    // 19,20 - was STAB_COL_MIN, STAB_COL_MAX now moved to main code's parameter list
+    AP_GROUPINFO("FLYBAR_MODE", 17, AP_MotorsHeli,  _flybar_mode, AP_MOTORS_HELI_NOFLYBAR),
 
     // @Param: LAND_COL_MIN
     // @DisplayName: Landing Collective Minimum
@@ -179,7 +175,7 @@ const AP_Param::GroupInfo AP_MotorsHeli::var_info[] PROGMEM = {
     // @Units: pwm
     // @Increment: 1
     // @User: Standard
-    AP_GROUPINFO("LAND_COL_MIN", 21, AP_MotorsHeli, _land_collective_min, AP_MOTORS_HELI_LAND_COLLECTIVE_MIN),
+    AP_GROUPINFO("LAND_COL_MIN", 18, AP_MotorsHeli, _land_collective_min, AP_MOTORS_HELI_LAND_COLLECTIVE_MIN),
 
     // @Param: RSC_RAMP_TIME
     // @DisplayName: RSC Ramp Time
@@ -187,7 +183,7 @@ const AP_Param::GroupInfo AP_MotorsHeli::var_info[] PROGMEM = {
     // @Range: 0 60
     // @Units: Seconds
     // @User: Standard
-    AP_GROUPINFO("RSC_RAMP_TIME", 22, AP_MotorsHeli,_rsc_ramp_time, AP_MOTORS_HELI_RSC_RAMP_TIME),
+    AP_GROUPINFO("RSC_RAMP_TIME", 19, AP_MotorsHeli,_rsc_ramp_time, AP_MOTORS_HELI_RSC_RAMP_TIME),
 
     // @Param: RSC_RUNUP_TIME
     // @DisplayName: RSC Runup Time
@@ -195,7 +191,7 @@ const AP_Param::GroupInfo AP_MotorsHeli::var_info[] PROGMEM = {
     // @Range: 0 60
     // @Units: Seconds
     // @User: Standard
-    AP_GROUPINFO("RSC_RUNUP_TIME", 23, AP_MotorsHeli,_rsc_runup_time, AP_MOTORS_HELI_RSC_RUNUP_TIME),
+    AP_GROUPINFO("RSC_RUNUP_TIME", 20, AP_MotorsHeli,_rsc_runup_time, AP_MOTORS_HELI_RSC_RUNUP_TIME),
 
     // @Param: TAIL_SPEED
     // @DisplayName: Direct Drive VarPitch Tail ESC speed
@@ -204,7 +200,19 @@ const AP_Param::GroupInfo AP_MotorsHeli::var_info[] PROGMEM = {
     // @Units: PWM
     // @Increment: 1
     // @User: Standard
-    AP_GROUPINFO("TAIL_SPEED", 24, AP_MotorsHeli,  _direct_drive_tailspeed, AP_MOTOR_HELI_DDTAIL_DEFAULT),
+    AP_GROUPINFO("TAIL_SPEED", 21, AP_MotorsHeli,  _direct_drive_tailspeed, AP_MOTOR_HELI_DDTAIL_DEFAULT),
+
+    // @Param: RSC_CRITICAL
+    // @DisplayName: Critical Rotor Speed
+    // @Description: Rotor speed below which flight is not possible
+    // @Range: 0 1000
+    // @Increment: 10
+    // @User: Standard
+    AP_GROUPINFO("RSC_CRITICAL", 22, AP_MotorsHeli, _rsc_critical, AP_MOTORS_HELI_RSC_CRITICAL),
+
+    // parameters 1 ~ 29 reserved for tradheli
+    // parameters 30 ~ 39 reserved for tricopter
+    // parameters 40 ~ 49 for single copter and coax copter (these have identical parameter files)
 
     AP_GROUPEND
 };
@@ -241,10 +249,10 @@ void AP_MotorsHeli::set_update_rate( uint16_t speed_hz )
 
     // setup fast channels
     uint32_t mask = 
-	    1U << pgm_read_byte(&_motor_to_channel_map[AP_MOTORS_MOT_1]) |
-	    1U << pgm_read_byte(&_motor_to_channel_map[AP_MOTORS_MOT_2]) |
-	    1U << pgm_read_byte(&_motor_to_channel_map[AP_MOTORS_MOT_3]) |
-	    1U << pgm_read_byte(&_motor_to_channel_map[AP_MOTORS_MOT_4]);
+        1U << pgm_read_byte(&_motor_to_channel_map[AP_MOTORS_MOT_1]) |
+        1U << pgm_read_byte(&_motor_to_channel_map[AP_MOTORS_MOT_2]) |
+        1U << pgm_read_byte(&_motor_to_channel_map[AP_MOTORS_MOT_3]) |
+        1U << pgm_read_byte(&_motor_to_channel_map[AP_MOTORS_MOT_4]);
     hal.rcout->set_freq(mask, _speed_hz);
 }
 
@@ -260,7 +268,26 @@ void AP_MotorsHeli::enable()
     hal.rcout->enable_ch(AP_MOTORS_HELI_RSC);                               // output for main rotor esc
 }
 
-// output_min - sends minimum values out to the motors
+// output - sends commands to the servos
+void AP_MotorsHeli::output()
+{
+    // update throttle filter
+    update_throttle_filter();
+
+    if (_flags.armed) {
+        if (!_flags.interlock) {
+            output_armed_zero_throttle();
+        } else if (_flags.stabilizing) {
+            output_armed_stabilizing();
+        } else {
+            output_armed_not_stabilizing();
+        }
+    } else {
+        output_disarmed();
+    }
+};
+
+// output_min - sets servos to neutral point
 void AP_MotorsHeli::output_min()
 {
     // move swash to mid
@@ -280,7 +307,7 @@ void AP_MotorsHeli::output_min()
 void AP_MotorsHeli::output_test(uint8_t motor_seq, int16_t pwm)
 {
     // exit immediately if not armed
-    if (!_flags.armed) {
+    if (!armed()) {
         return;
     }
 
@@ -315,33 +342,39 @@ void AP_MotorsHeli::output_test(uint8_t motor_seq, int16_t pwm)
     }
 }
 
-// allow_arming - returns true if main rotor is spinning and it is ok to arm
+// allow_arming - check if it's safe to arm
 bool AP_MotorsHeli::allow_arming() const
 {
-    // ensure main rotor has started
-    if (_rsc_mode != AP_MOTORS_HELI_RSC_MODE_NONE && _servo_rsc.control_in > 0) {
+    // returns false if main rotor speed is not zero
+    if (_rsc_mode != AP_MOTORS_HELI_RSC_MODE_NONE && _rotor_speed_estimate > 0) {
         return false;
     }
 
-    // all other cases it is ok to arm
+    // all other cases it is OK to arm
     return true;
 }
 
-// set_desired_rotor_speed - sets target rotor speed as a number from 0 ~ 1000
-void AP_MotorsHeli::set_desired_rotor_speed(int16_t desired_speed)
+// parameter_check - check if helicopter specific parameters are sensible
+bool AP_MotorsHeli::parameter_check() const
 {
-    _rotor_desired = desired_speed;
+    // returns false if _rsc_setpoint is not higher than _rsc_critical as this would not allow rotor_runup_complete to ever return true
+    if (_rsc_critical >= _rsc_setpoint) {
+        return false;
+    }
+
+    // all other cases parameters are OK
+    return true;
 }
 
 // return true if the main rotor is up to speed
-bool AP_MotorsHeli::motor_runup_complete() const
+bool AP_MotorsHeli::rotor_runup_complete() const
 {
     // if we have no control of motors, assume pilot has spun them up
     if (_rsc_mode == AP_MOTORS_HELI_RSC_MODE_NONE) {
         return true;
     }
 
-    return _heliflags.motor_runup_complete;
+    return _heliflags.rotor_runup_complete;
 }
 
 // recalc_scalers - recalculates various scalers used.  Should be called at about 1hz to allow users to see effect of changing parameters
@@ -351,7 +384,7 @@ void AP_MotorsHeli::recalc_scalers()
     if (_rsc_ramp_time <= 0) {
         _rsc_ramp_time = 1;
     }
-    _rsc_ramp_increment = 1000.0f / (_rsc_ramp_time / _dt);
+    _rsc_ramp_increment = 1000.0f / (_rsc_ramp_time * _loop_rate);
 
     // recalculate rotor runup increment
     if (_rsc_runup_time <= 0 ) {
@@ -360,7 +393,7 @@ void AP_MotorsHeli::recalc_scalers()
     if (_rsc_runup_time < _rsc_ramp_time) {
         _rsc_runup_time = _rsc_ramp_time;
     }
-    _rsc_runup_increment = 1000.0f / (_rsc_runup_time * 100.0f);
+    _rsc_runup_increment = 1000.0f / (_rsc_runup_time * _loop_rate);
 }
 
 // get_motor_mask - returns a bitmask of which outputs are being used for motors or servos (1 means being used)
@@ -371,42 +404,43 @@ uint16_t AP_MotorsHeli::get_motor_mask()
     return (1U << 0 | 1U << 1 | 1U << 2 | 1U << 3 | 1U << AP_MOTORS_HELI_AUX | 1U << AP_MOTORS_HELI_RSC);
 }
 
-//
-// protected methods
-//
+void AP_MotorsHeli::output_armed_not_stabilizing()
+{
+    // stabilizing servos always operate for helicopters
+    output_armed_stabilizing();
+}
 
-// output_armed - sends commands to the motors
-void AP_MotorsHeli::output_armed()
+// sends commands to the motors
+void AP_MotorsHeli::output_armed_stabilizing()
 {
     // if manual override (i.e. when setting up swash), pass pilot commands straight through to swash
     if (_servo_manual == 1) {
-        _rc_roll.servo_out = _rc_roll.control_in;
-        _rc_pitch.servo_out = _rc_pitch.control_in;
-        _rc_throttle.servo_out = _rc_throttle.control_in;
-        _rc_yaw.servo_out = _rc_yaw.control_in;
+        _roll_control_input = _roll_radio_passthrough;
+        _pitch_control_input = _pitch_radio_passthrough;
+        _throttle_control_input = _throttle_radio_passthrough;
+        _yaw_control_input = _yaw_radio_passthrough;
     }
 
-    _rc_roll.calc_pwm();
-    _rc_pitch.calc_pwm();
-    _rc_throttle.calc_pwm();
-    _rc_yaw.calc_pwm();
-
-    move_swash(_rc_roll.servo_out, _rc_pitch.servo_out, _rc_throttle.servo_out, _rc_yaw.servo_out);
+    move_swash(_roll_control_input, _pitch_control_input, _throttle_control_input, _yaw_control_input);
 
     // update rotor and direct drive esc speeds
     rsc_control();
 }
 
+// output_armed_zero_throttle - sends commands to the motors
+void AP_MotorsHeli::output_armed_zero_throttle()
+{
+    // stabilizing servos always operate for helicopters
+    // ToDo: Bring RSC Master On/Off into this function
+    output_armed_stabilizing();
+}
+
 // output_disarmed - sends commands to the motors
 void AP_MotorsHeli::output_disarmed()
 {
-    // for helis - armed or disarmed we allow servos to move
-    output_armed();
+    // stabilizing servos always operate for helicopters
+    output_armed_stabilizing();
 }
-
-//
-// private methods
-//
 
 // reset_swash - free up swash for maximum movements. Used for set-up
 void AP_MotorsHeli::reset_swash()
@@ -425,8 +459,8 @@ void AP_MotorsHeli::reset_swash()
     // set roll, pitch and throttle scaling
     _roll_scaler = 1.0f;
     _pitch_scaler = 1.0f;
-    _collective_scalar = ((float)(_rc_throttle.radio_max - _rc_throttle.radio_min))/1000.0f;
-	_collective_scalar_manual = 1.0f;
+    _collective_scalar = ((float)(_throttle_radio_max - _throttle_radio_min))/1000.0f;
+    _collective_scalar_manual = 1.0f;
 
     // we must be in set-up mode so mark swash as uninitialised
     _heliflags.swash_initialised = false;
@@ -537,7 +571,7 @@ void AP_MotorsHeli::move_swash(int16_t roll_out, int16_t pitch_out, int16_t coll
         }
         // To-Do:  This equation seems to be wrong.  It probably restricts swash movement so that swash setup doesn't work right.
         // _collective_scalar should probably not be used or set to 1?
-        coll_out_scaled = coll_in * _collective_scalar + _rc_throttle.radio_min - 1000;
+        coll_out_scaled = coll_in * _collective_scalar + _throttle_radio_min - 1000;
     }else{      // regular flight mode
 
         // check if we need to reinitialise the swash
@@ -590,11 +624,13 @@ void AP_MotorsHeli::move_swash(int16_t roll_out, int16_t pitch_out, int16_t coll
 
         // scale collective pitch
         coll_out_scaled = _collective_out * _collective_scalar + _collective_min - 1000;
-	
+    
         // rudder feed forward based on collective
         // the feed-forward is not required when the motor is shut down and not creating torque
         // also not required if we are using external gyro
-        if ((_rotor_desired > 0) && _tail_type != AP_MOTORS_HELI_TAILTYPE_SERVO_EXTGYRO) {
+        if ((_desired_rotor_speed > 0) && _tail_type != AP_MOTORS_HELI_TAILTYPE_SERVO_EXTGYRO) {
+            // sanity check collective_yaw_effect
+            _collective_yaw_effect = constrain_float(_collective_yaw_effect, -AP_MOTOR_HELI_COLYAW_RANGE, AP_MOTOR_HELI_COLYAW_RANGE);
             yaw_offset = _collective_yaw_effect * abs(_collective_out - _collective_mid_pwm);
         }
     }
@@ -658,12 +694,12 @@ void AP_MotorsHeli::rsc_control()
     }
 
     // ramp up or down main rotor and tail
-    if (_rotor_desired > 0) {
+    if (_desired_rotor_speed > 0) {
         // ramp up tail rotor (this does nothing if not using direct drive variable pitch tail)
         tail_ramp(_direct_drive_tailspeed);
         // note: this always returns true if not using direct drive variable pitch tail
         if (tail_rotor_runup_complete()) {
-            rotor_ramp(_rotor_desired);
+            rotor_ramp(_desired_rotor_speed);
         }
     }else{
         // shutting down main rotor
@@ -675,7 +711,7 @@ void AP_MotorsHeli::rsc_control()
     // direct drive fixed pitch tail servo gets copy of yaw servo out (ch4) while main rotor is running
     if (_tail_type == AP_MOTORS_HELI_TAILTYPE_DIRECTDRIVE_FIXEDPITCH) {
         // output fixed-pitch speed control if Ch8 is high
-        if (_rotor_desired > 0 || _rotor_speed_estimate > 0) {
+        if (_desired_rotor_speed > 0 || _rotor_speed_estimate > 0) {
             // copy yaw output to tail esc
             write_aux(_servo_4.servo_out);
         }else{
@@ -727,11 +763,11 @@ void AP_MotorsHeli::rotor_ramp(int16_t rotor_target)
     }
 
     // set runup complete flag
-    if (!_heliflags.motor_runup_complete && rotor_target > 0 && _rotor_speed_estimate >= rotor_target) {
-        _heliflags.motor_runup_complete = true;
+    if (!_heliflags.rotor_runup_complete && rotor_target > 0 && _rotor_speed_estimate >= rotor_target) {
+        _heliflags.rotor_runup_complete = true;
     }
-    if (_heliflags.motor_runup_complete && rotor_target == 0 && _rotor_speed_estimate <= 0) {
-        _heliflags.motor_runup_complete = false;
+    if (_heliflags.rotor_runup_complete && _rotor_speed_estimate <= _rsc_critical) {
+        _heliflags.rotor_runup_complete = false;
     }
 
     // output to rsc servo
@@ -805,4 +841,31 @@ void AP_MotorsHeli::set_delta_phase_angle(int16_t angle)
     angle = constrain_int16(angle, -90, 90);
     _delta_phase_angle = angle;
     calculate_roll_pitch_collective_factors();
+}
+
+// update the throttle input filter
+void AP_MotorsHeli::update_throttle_filter()
+{
+    _throttle_filter.apply(_throttle_in, 1.0f/_loop_rate);
+
+    // constrain throttle signal to 0-1000
+    _throttle_control_input = constrain_float(_throttle_filter.get(),0.0f,1000.0f);
+}
+
+// set_radio_passthrough used to pass radio inputs directly to outputs
+void AP_MotorsHeli::set_radio_passthrough(int16_t radio_roll_input, int16_t radio_pitch_input, int16_t radio_throttle_input, int16_t radio_yaw_input)
+{
+    _roll_radio_passthrough = radio_roll_input;
+    _pitch_radio_passthrough = radio_pitch_input;
+    _throttle_radio_passthrough = radio_throttle_input;
+    _yaw_radio_passthrough = radio_yaw_input;
+}
+
+// reset_radio_passthrough used to reset all radio inputs to center
+void AP_MotorsHeli::reset_radio_passthrough()
+{
+    _roll_radio_passthrough = 0;
+    _pitch_radio_passthrough = 0;
+    _throttle_radio_passthrough = 500;
+    _yaw_radio_passthrough = 0;
 }

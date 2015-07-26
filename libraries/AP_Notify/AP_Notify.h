@@ -36,24 +36,6 @@
  # define OREOLED_ENABLED   0   // set to 1 to enable OreoLEDs
 #endif
 
-#if CONFIG_HAL_BOARD == HAL_BOARD_PX4
-    #define CONFIG_NOTIFY_DEVICES_COUNT (3+OREOLED_ENABLED)
-#elif CONFIG_HAL_BOARD == HAL_BOARD_APM1 || CONFIG_HAL_BOARD == HAL_BOARD_APM2 
-    #define CONFIG_NOTIFY_DEVICES_COUNT 3
-#elif CONFIG_HAL_BOARD == HAL_BOARD_VRBRAIN
-    #define CONFIG_NOTIFY_DEVICES_COUNT 4
-#elif CONFIG_HAL_BOARD == HAL_BOARD_LINUX
-    #if CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_NAVIO
-        #define CONFIG_NOTIFY_DEVICES_COUNT 2
-    #elif CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_RASPILOT
-        #define CONFIG_NOTIFY_DEVICES_COUNT 3
-    #else
-        #define CONFIG_NOTIFY_DEVICES_COUNT 3
-    #endif
-#else
-    #define CONFIG_NOTIFY_DEVICES_COUNT 2
-#endif
-
 class AP_Notify
 {
 public:
@@ -61,8 +43,6 @@ public:
     struct notify_flags_type {
         uint32_t initialising       : 1;    // 1 if initialising and copter should not be moved
         uint32_t gps_status         : 3;    // 0 = no gps, 1 = no lock, 2 = 2d lock, 3 = 3d lock, 4 = dgps lock, 5 = rtk lock
-        uint32_t gps_glitching      : 1;    // 1 if gps position is not good
-        uint32_t baro_glitching     : 1;    // 1 if baro altitude is not good
         uint32_t armed              : 1;    // 0 = disarmed, 1 = armed
         uint32_t pre_arm_check      : 1;    // 0 = failing checks, 1 = passed
         uint32_t pre_arm_gps_check  : 1;    // 0 = failing pre-arm GPS checks, 1 = passed
@@ -70,12 +50,13 @@ public:
         uint32_t esc_calibration    : 1;    // 1 if calibrating escs
         uint32_t failsafe_radio     : 1;    // 1 if radio failsafe
         uint32_t failsafe_battery   : 1;    // 1 if battery failsafe
-        uint32_t failsafe_gps       : 1;    // 1 if gps failsafe
         uint32_t parachute_release  : 1;    // 1 if parachute is being released
         uint32_t ekf_bad            : 1;    // 1 if ekf is reporting problems
+        uint32_t autopilot_mode     : 1;    // 1 if vehicle is in an autopilot flight mode (only used by OreoLEDs)
 
         // additional flags
         uint32_t external_leds      : 1;    // 1 if external LEDs are enabled (normally only used for copter)
+        uint32_t vehicle_lost       : 1;    // 1 when lost copter tone is requested (normally only used for copter)
     };
 
     /// notify_events_type - bitmask of active events.
@@ -90,6 +71,7 @@ public:
         uint16_t autotune_next_axis     : 1;    // 1 when autotune has completed one axis and is moving onto the next
         uint16_t mission_complete       : 1;    // 1 when the mission has completed successfully
         uint16_t waypoint_complete      : 1;    // 1 as vehicle completes a waypoint
+        uint16_t firmware_update        : 1;    // 1 just before vehicle firmware is updated
     };
 
     // the notify flags are static to allow direct class access
@@ -107,7 +89,7 @@ public:
     static void handle_led_control(mavlink_message_t* msg);
 
 private:
-    static NotifyDevice* _devices[CONFIG_NOTIFY_DEVICES_COUNT];
+    static NotifyDevice* _devices[];
 };
 
 #endif    // __AP_NOTIFY_H__

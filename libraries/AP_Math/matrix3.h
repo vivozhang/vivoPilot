@@ -208,6 +208,18 @@ public:
     // create eulers from a rotation matrix
     void        to_euler(float *roll, float *pitch, float *yaw) const;
 
+    /*
+      calculate Euler angles (312 convention) for the matrix.
+      See http://www.atacolorado.com/eulersequences.doc
+      vector is returned in r, p, y order
+    */
+    Vector3<T> to_euler312() const;
+
+    /*
+      fill the matrix from Euler angles in radians in 312 convention
+    */
+    void from_euler312(float roll, float pitch, float yaw);
+
     // apply an additional rotation from a body frame gyro vector
     // to a rotation matrix.
     void        rotate(const Vector3<T> &g);
@@ -219,6 +231,9 @@ public:
     // apply an additional inverse rotation to a rotation matrix but 
     // only use X, Y elements from rotation vector
     void        rotateXYinv(const Vector3<T> &g);
+
+    // normalize a rotation matrix
+    void        normalize(void);
 };
 
 typedef Matrix3<int16_t>                Matrix3i;
