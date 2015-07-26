@@ -28,7 +28,7 @@
 
 extern const AP_HAL::HAL& hal;
 
-/* 
+/*
    The constructor also initialises the rangefinder. Note that this
    constructor is not called until detect() returns true, so we
    already know that we should setup the rangefinder
@@ -38,7 +38,7 @@ AP_RangeFinder_MaxsonarI2CXL::AP_RangeFinder_MaxsonarI2CXL(RangeFinder &_ranger,
 {
 }
 
-/* 
+/*
    detect if a Maxbotix rangefinder is connected. We'll detect by
    trying to take a reading on I2C. If we get a result the sensor is
    there.
@@ -65,7 +65,7 @@ bool AP_RangeFinder_MaxsonarI2CXL::start_reading()
         return false;
     }
 
-    uint8_t tosend[1] = 
+    uint8_t tosend[1] =
         { AP_RANGE_FINDER_MAXSONARI2CXL_COMMAND_TAKE_RANGE_READING };
 
     // send command to take reading
@@ -111,7 +111,7 @@ bool AP_RangeFinder_MaxsonarI2CXL::get_reading(uint16_t &reading_cm)
 }
 
 
-/* 
+/*
    update the state of the sensor
 */
 void AP_RangeFinder_MaxsonarI2CXL::update(void)
