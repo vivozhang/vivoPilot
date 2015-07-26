@@ -68,10 +68,10 @@ AP_Frsky_Telem::AP_Frsky_Telem(AP_AHRS &ahrs, AP_BattMonitor &battery) :
 void AP_Frsky_Telem::init(const AP_SerialManager& serial_manager)
 {
     // check for FRSky_DPort
-    if ((_port = serial_manager.find_serial(AP_SerialManager::SerialProtocol_FRSky_DPort))) {
+    if ((_port = serial_manager.find_serial(AP_SerialManager::SerialProtocol_FRSky_DPort, 0))) {
         _protocol = FrSkyDPORT;
         _initialised_uart = true;   // SerialManager initialises uart for us
-    } else if ((_port = serial_manager.find_serial(AP_SerialManager::SerialProtocol_FRSky_SPort))) {
+    } else if ((_port = serial_manager.find_serial(AP_SerialManager::SerialProtocol_FRSky_SPort, 0))) {
         // check for FRSky_SPort
         _protocol = FrSkySPORT;
         _gps_call = 0;
@@ -84,7 +84,7 @@ void AP_Frsky_Telem::init(const AP_SerialManager& serial_manager)
         _mode_data_ready = false;
         _sats_data_ready = false;
         _sport_status = 0;
-        hal.scheduler->register_io_process(AP_HAL_MEMBERPROC(&AP_Frsky_Telem::sport_tick));
+        hal.scheduler->register_io_process(FUNCTOR_BIND_MEMBER(&AP_Frsky_Telem::sport_tick, void));
     }
 
     if (_port != NULL) {
@@ -494,12 +494,12 @@ void AP_Frsky_Telem::calc_gps_position()
     if (_pos_gps_ok) {
         Location loc = gps.location();//get gps instance 0
     
-        lat = frsky_format_gps(fabsf(loc.lat/10000000.0));
+        lat = frsky_format_gps(fabsf(loc.lat/10000000.0f));
         _latdddmm = lat;
         _latmmmm = (lat - _latdddmm) * 10000;
         _lat_ns = (loc.lat < 0) ? 'S' : 'N';
         
-        lon = frsky_format_gps(fabsf(loc.lng/10000000.0));
+        lon = frsky_format_gps(fabsf(loc.lng/10000000.0f));
         _londddmm = lon;
         _lonmmmm = (lon - _londddmm) * 10000;
         _lon_ew = (loc.lng < 0) ? 'W' : 'E';

@@ -34,11 +34,12 @@ class AP_AHRS_NavEKF : public AP_AHRS_DCM
 {
 public:
     // Constructor
-    AP_AHRS_NavEKF(AP_InertialSensor &ins, AP_Baro &baro, AP_GPS &gps) :
+AP_AHRS_NavEKF(AP_InertialSensor &ins, AP_Baro &baro, AP_GPS &gps, RangeFinder &rng, NavEKF &_EKF) :
     AP_AHRS_DCM(ins, baro, gps),
-        EKF(this, baro),
+        EKF(_EKF),
         ekf_started(false),
-        startup_delay_ms(10000)
+        startup_delay_ms(1000),
+        start_time_ms(0)
         {
         }
 
@@ -63,8 +64,8 @@ public:
     bool get_position(struct Location &loc) const;
 
     // status reporting of estimated error
-    float           get_error_rp(void);
-    float           get_error_yaw(void);
+    float           get_error_rp(void) const;
+    float           get_error_yaw(void) const;
 
     // return a wind estimation vector, in m/s
     Vector3f wind_estimate(void);
@@ -103,7 +104,7 @@ public:
     bool get_relative_position_NED(Vector3f &vec) const;
 
     // write optical flow measurements to EKF
-    void writeOptFlowMeas(uint8_t &rawFlowQuality, Vector2f &rawFlowRates, Vector2f &rawGyroRates, uint32_t &msecFlowMeas, uint8_t &rangeHealth, float &rawSonarRange);
+    void writeOptFlowMeas(uint8_t &rawFlowQuality, Vector2f &rawFlowRates, Vector2f &rawGyroRates, uint32_t &msecFlowMeas);
 
     // inibit GPS useage
     uint8_t setInhibitGPS(void);
@@ -111,7 +112,7 @@ public:
     // get speed limit
     void getEkfControlLimits(float &ekfGndSpdLimit, float &ekfNavVelGainScaler);
 
-    void set_ekf_use(bool setting) { _ekf_use.set(setting); }
+    void set_ekf_use(bool setting);
 
     // is the AHRS subsystem healthy?
     bool healthy(void) const;
@@ -119,10 +120,14 @@ public:
     // true if the AHRS has completed initialisation
     bool initialised(void) const;
 
+    // get compass offset estimates
+    // true if offsets are valid
+    bool getMagOffsets(Vector3f &magOffsets);
+
 private:
     bool using_EKF(void) const;
 
-    NavEKF EKF;
+    NavEKF &EKF;
     bool ekf_started;
     Matrix3f _dcm_matrix;
     Vector3f _dcm_attitude;

@@ -23,17 +23,20 @@ namespace Linux {
     class LinuxDigitalSource;
     class LinuxRCInput;
     class LinuxRCInput_PRU;
+    class LinuxRCInput_AioPRU;
     class LinuxRCInput_Navio;
     class LinuxRCInput_Raspilot;
     class LinuxRCInput_ZYNQ;
     class LinuxRCOutput_PRU;
+    class LinuxRCOutput_AioPRU;
     class LinuxRCOutput_Navio;
     class LinuxRCOutput_Raspilot;
     class LinuxRCOutput_ZYNQ;
+    class LinuxRCOutput_Bebop;
     class LinuxSemaphore;
     class LinuxScheduler;
     class LinuxUtil;
-	class ToneAlarm;					//limit the scope of ToneAlarm driver to Linux_HAL only
+    class ToneAlarm;					//limit the scope of ToneAlarm driver to Linux_HAL only
 }
 
 #endif // __AP_HAL_LINUX_NAMESPACE_H__

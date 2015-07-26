@@ -81,7 +81,7 @@ public:
 
 	struct PACKED log_TECS_Tuning {
 		LOG_PACKET_HEADER;
-		uint32_t time_ms;
+		uint64_t time_us;
 		float hgt;
 		float dhgt;
 		float hgt_dem;
@@ -132,6 +132,7 @@ private:
     AP_Float _land_sink;
 	AP_Int8  _pitch_max;
 	AP_Int8  _pitch_min;
+	AP_Int8  _land_pitch_max;
 	
 	// throttle demand in the range from 0.0 to 1.0
     float _throttle_dem;
@@ -283,10 +284,10 @@ private:
 	AverageFilterFloat_Size5 _vdot_filter;
 
 	// current time constant
-	float timeConstant(void);
+	float timeConstant(void) const;
 };
 
 #define TECS_LOG_FORMAT(msg) { msg, sizeof(AP_TECS::log_TECS_Tuning),	\
-							   "TECS", "Iffffffffffff", "TimeMS,h,dh,h_dem,dh_dem,sp_dem,sp,dsp,ith,iph,th,ph,dsp_dem" }
+							   "TECS", "Qffffffffffff", "TimeUS,h,dh,h_dem,dh_dem,sp_dem,sp,dsp,ith,iph,th,ph,dsp_dem" }
 
 #endif //AP_TECS_H

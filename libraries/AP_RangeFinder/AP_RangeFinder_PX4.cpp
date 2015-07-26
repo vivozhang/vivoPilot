@@ -26,6 +26,7 @@
 
 #include <drivers/drv_range_finder.h>
 #include <drivers/drv_hrt.h>
+#include <uORB/topics/distance_sensor.h>
 #include <stdio.h>
 #include <errno.h>
 
@@ -50,18 +51,19 @@ AP_RangeFinder_PX4::AP_RangeFinder_PX4(RangeFinder &_ranger, uint8_t instance, R
 
 	if (_fd == -1) {
         hal.console->printf("Unable to open PX4 rangefinder %u\n", num_px4_instances);
-        state.healthy = false;
+        set_status(RangeFinder::RangeFinder_NotConnected);
         return;
 	}
 
     // average over up to 20 samples
     if (ioctl(_fd, SENSORIOCSQUEUEDEPTH, 20) != 0) {
         hal.console->printf("Failed to setup range finder queue\n");
-        state.healthy = false;
+        set_status(RangeFinder::RangeFinder_NotConnected);
         return;
     }
 
-    state.healthy = true;
+    // initialise to connected but no data
+    set_status(RangeFinder::RangeFinder_NoData);
 }
 
 /* 
@@ -101,11 +103,11 @@ bool AP_RangeFinder_PX4::detect(RangeFinder &_ranger, uint8_t instance)
 void AP_RangeFinder_PX4::update(void)
 {
     if (_fd == -1) {
-        state.healthy = false;
+        set_status(RangeFinder::RangeFinder_NotConnected);
         return;
     }
 
-    struct range_finder_report range_report;
+    struct distance_sensor_s range_report;
     float sum = 0;
     uint16_t count = 0;
 
@@ -123,19 +125,23 @@ void AP_RangeFinder_PX4::update(void)
 
     while (::read(_fd, &range_report, sizeof(range_report)) == sizeof(range_report) &&
            range_report.timestamp != _last_timestamp) {
-            // Only take valid readings
-            if (range_report.valid == 1) {
-                sum += range_report.distance;
-                count++;
-                _last_timestamp = range_report.timestamp;
-            }
+            // take reading
+            sum += range_report.current_distance;
+            count++;
+            _last_timestamp = range_report.timestamp;
     }
 
-    // consider the range finder healthy if we got a reading in the last 0.2s
-    state.healthy = (hal.scheduler->micros64() - _last_timestamp < 200000);
+    // if we have not taken a reading in the last 0.2s set status to No Data
+    if (hal.scheduler->micros64() - _last_timestamp >= 200000) {
+        set_status(RangeFinder::RangeFinder_NoData);
+    }
 
     if (count != 0) {
         state.distance_cm = sum / count * 100.0f;
+        state.distance_cm += ranger._offset[state.instance];
+
+        // update range_valid state based on distance measured
+        update_status();
     }
 }
 

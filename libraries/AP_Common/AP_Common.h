@@ -44,6 +44,9 @@
 // this can be used to optimize individual functions
 #define OPTIMIZE(level) __attribute__((optimize(level)))
 
+// sometimes we need to prevent inlining to prevent large stack usage
+#define NOINLINE __attribute__((noinline))
+
 // Make some dire warnings into errors
 //
 // Some warnings indicate questionable code; rather than let
@@ -76,6 +79,8 @@
 // get high or low bytes from 2 byte integer
 #define LOWBYTE(i) ((uint8_t)(i))
 #define HIGHBYTE(i) ((uint8_t)(((uint16_t)(i))>>8))
+
+#define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
 
 // @}
 

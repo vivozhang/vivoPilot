@@ -39,16 +39,12 @@ class AP_Mount_Servo;
 class AP_Mount_MAVLink;
 class AP_Mount_Alexmos;
 class AP_Mount_SToRM32;
+class AP_Mount_SToRM32_serial;
 
 /*
   This is a workaround to allow the MAVLink backend access to the
   SmallEKF. It would be nice to find a neater solution to this
  */
-#if AP_AHRS_NAVEKF_AVAILABLE
-#define AP_AHRS_MOUNT AP_AHRS_NavEKF
-#else
-#define AP_AHRS_MOUNT AP_AHRS
-#endif
 
 class AP_Mount
 {
@@ -58,6 +54,7 @@ class AP_Mount
     friend class AP_Mount_MAVLink;
     friend class AP_Mount_Alexmos;
     friend class AP_Mount_SToRM32;
+    friend class AP_Mount_SToRM32_serial;
 
 public:
 
@@ -67,11 +64,19 @@ public:
         Mount_Type_Servo = 1,           /// servo controlled mount
         Mount_Type_MAVLink = 2,         /// MAVLink controlled mount
         Mount_Type_Alexmos = 3,         /// Alexmos mount
-        Mount_Type_SToRM32 = 4          /// SToRM32 mount
+        Mount_Type_SToRM32 = 4,         /// SToRM32 mount using MAVLink protocol
+        Mount_Type_SToRM32_serial = 5   /// SToRM32 mount using custom serial protocol
+    };
+
+    struct gimbal_params {
+        AP_Vector3f     delta_angles_offsets;
+        AP_Vector3f     delta_velocity_offsets;
+        AP_Vector3f     joint_angles_offsets;
+        AP_Float        K_gimbalRate;
     };
 
     // Constructor
-    AP_Mount(const AP_AHRS_MOUNT &ahrs, const struct Location &current_loc);
+    AP_Mount(const AP_AHRS_TYPE &ahrs, const struct Location &current_loc);
 
     // init - detect and initialise all mounts
     void init(const AP_SerialManager& serial_manager);
@@ -101,6 +106,10 @@ public:
     void set_mode_to_default() { set_mode_to_default(_primary); }
     void set_mode_to_default(uint8_t instance);
 
+    // set_angle_targets - sets angle targets in degrees
+    void set_angle_targets(float roll, float tilt, float pan) { set_angle_targets(_primary, roll, tilt, pan); }
+    void set_angle_targets(uint8_t instance, float roll, float tilt, float pan);
+
     // set_roi_target - sets target location that mount should attempt to point towards
     void set_roi_target(const struct Location &target_loc) { set_roi_target(_primary,target_loc); }
     void set_roi_target(uint8_t instance, const struct Location &target_loc);
@@ -128,7 +137,7 @@ public:
 protected:
 
     // private members
-    const AP_AHRS_MOUNT     &_ahrs;
+    const AP_AHRS_TYPE     &_ahrs;
     const struct Location   &_current_loc;  // reference to the vehicle's current location
 
     // frontend parameters
@@ -169,6 +178,9 @@ protected:
 
         MAV_MOUNT_MODE  _mode;              // current mode (see MAV_MOUNT_MODE enum)
         struct Location _roi_target;        // roi target location
+
+        struct gimbal_params _gimbalParams;
+        
     } state[AP_MOUNT_MAX_INSTANCES];
 };
 

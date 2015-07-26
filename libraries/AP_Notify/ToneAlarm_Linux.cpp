@@ -36,12 +36,12 @@ extern const AP_HAL::HAL& hal;
 bool ToneAlarm_Linux::init()
 {
     // open the tone alarm device
-    err = !hal.util->toneAlarm_init();
-    if (err) {
+    _initialized = hal.util->toneAlarm_init();
+    if (!_initialized) {
         hal.console->printf("AP_Notify: Failed to initialise ToneAlarm");
         return false;
     }
-    
+
     // set initial boot states. This prevents us issueing a arming
     // warning in plane and rover on every boot
     flags.armed = AP_Notify::flags.armed;
@@ -61,7 +61,7 @@ bool ToneAlarm_Linux::play_tune(uint8_t tune_number)
 void ToneAlarm_Linux::update()
 {
     // exit immediately if we haven't initialised successfully
-    if (err == -1) {
+    if (!_initialized) {
         return;
     }
 
@@ -88,24 +88,6 @@ void ToneAlarm_Linux::update()
         if (flags.failsafe_battery) {
             // low battery warning tune
             play_tune(TONE_BATTERY_WARNING_FAST_TUNE);
-        }
-    }
-
-    // check gps glitch
-    if (flags.gps_glitching != AP_Notify::flags.gps_glitching) {
-        flags.gps_glitching = AP_Notify::flags.gps_glitching;
-        if (flags.gps_glitching) {
-            // gps glitch warning tune
-            play_tune(TONE_GPS_WARNING_TUNE);
-        }
-    }
-
-    // check gps failsafe
-    if (flags.failsafe_gps != AP_Notify::flags.failsafe_gps) {
-        flags.failsafe_gps = AP_Notify::flags.failsafe_gps;
-        if (flags.failsafe_gps) {
-            // gps glitch warning tune
-            play_tune(TONE_GPS_WARNING_TUNE);
         }
     }
 
