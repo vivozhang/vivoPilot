@@ -41,14 +41,10 @@
 
 ###写入系统镜像到树莓派SD卡###
 树莓派官方的Linux系统实时性不适合运行飞控程序，因此要使用打了RT-patch的系统镜像。<br>
-首先下载和解压Linux系统的镜像文件。目前还没来得及自己编译，暂时借用emlid打包的镜像。<br>
+首先下载和解压Linux系统的镜像文件。从以下网盘链接下载，树莓派1代和2代都可以使用。<br>
 <br>
-　树莓派1代<br>
-　　百度网盘：http://pan.baidu.com/s/1kTEKmCv<br>
-　　Mega网盘：https://mega.co.nz/#!RVJxHJpI!QVPTZaNY0AiuPbcxQjOTmZ2un6d0j7W3g1jwheuotUc<br>
-　树莓派2代<br>
-　　百度网盘：http://pan.baidu.com/s/1qWsVr9y<br>
-　　Mega网盘：https://mega.co.nz/#!0VZFzbwC!6tTzWFKl8jdR4Q52A9A03wYyAPghIDKtxGpavNMBKn4<br>
+　百度网盘：http://pan.baidu.com/s/1bnHd1TH<br>
+　Mega网盘：https://mega.co.nz/#!UFY12ThQ!DdoBzoeMr_CxjWLAkw0coiKxN1D_Q3OuNje-NBegYcQ<br>
 <br>
 然后按照树莓派的官方教程将镜像文件写入SD卡：<br>
 <br>
@@ -70,7 +66,7 @@
 
 ###安装和设置飞控程序###
 1 下载飞控程序<br>
-　ArduCopter.elf 百度网盘下载地址：http://pan.baidu.com/s/1hqJ9ZbY （1、2代树莓派均可使用）<br>
+　ArduCopter.elf 百度网盘下载地址：http://pan.baidu.com/s/1pJ3hQNT （2015—07-27更新）（1、2代树莓派均可使用）<br>
 　下载后放到树莓派用户根目录，即/home/pi目录中。<br>
 　然后，修改ArduCopter.elf可执行权限：<br>
 　`chmod +x ArduCopter.elf`<br>
