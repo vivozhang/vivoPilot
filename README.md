@@ -55,15 +55,6 @@
 <br>
 或者可以百度，有很多中文教程。<br>
 
-###配置树莓派WiFi连接###
-编辑/etc/wpa_supplicant/wpa_supplicant.conf文件<br>
-　`sudo nano /etc/wpa_supplicant/wpa_supplicant.conf`<br>
-将文件中的<br>
-　`ssid = “emlidltd”`<br>
-　`psk = “emlidltd”`<br>
-　`key_mgmt = wpa-psk`<br>
-改为自己WiFi的SSID和密码。<br>
-
 ###安装和设置飞控程序###
 1 下载飞控程序<br>
 　ArduCopter.elf 百度网盘下载地址：http://pan.baidu.com/s/1pJ3hQNT （2015—07-27更新）（1、2代树莓派均可使用）<br>
@@ -110,7 +101,3 @@
 * 通过WiFi同步到树莓派：<br>
 　`rsync -avz /tmp/ArduCopter.build/ArduCopter.elf pi@192.168.1.100:/home/pi/`<br>
 　其中`192.168.1.100`改为树莓派的实际IP地址<br>
-
-###修改I2C波特率###
-系统默认的I2C波特率是1MHz，可以在/etc/modprobe.d/i2c.conf中修改波特率。<br>
-　`sudo nano /etc/modprobe.d/i2c.conf`<br>
