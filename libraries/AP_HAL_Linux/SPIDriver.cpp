@@ -49,7 +49,7 @@ LinuxSPIDeviceDriver LinuxSPIDeviceManager::_device[] = {
 #elif CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_RASPILOT
 LinuxSPIDeviceDriver LinuxSPIDeviceManager::_device[] = {
     /* MPU9250 is restricted to 1MHz for non-data and interrupt registers */
-    LinuxSPIDeviceDriver(0, 0, AP_HAL::SPIDevice_MPU6000, SPI_MODE_3, 8, RPI_GPIO_25,  1*MHZ, 8*MHZ),
+    LinuxSPIDeviceDriver(0, 0, AP_HAL::SPIDevice_MPU9250, SPI_MODE_3, 8, RPI_GPIO_25,  1*MHZ, 8*MHZ),
     LinuxSPIDeviceDriver(0, 0, AP_HAL::SPIDevice_MS5611,  SPI_MODE_3, 8, RPI_GPIO_23,  1*MHZ, 8*MHZ),
     LinuxSPIDeviceDriver(0, 0, AP_HAL::SPIDevice_L3GD20,  SPI_MODE_3, 8, RPI_GPIO_12,  1*MHZ, 8*MHZ),
     LinuxSPIDeviceDriver(0, 0, AP_HAL::SPIDevice_LSM303D, SPI_MODE_3, 8, RPI_GPIO_22,  1*MHZ, 8*MHZ),

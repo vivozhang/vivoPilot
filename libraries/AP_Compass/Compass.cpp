@@ -352,6 +352,7 @@ Compass::_detect_backends(void)
 #if CONFIG_HAL_BOARD == HAL_BOARD_LINUX && CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_RASPILOT
     _add_backend(AP_Compass_HMC5843::detect);
     _add_backend(AP_Compass_LSM303D::detect);
+    //_add_backend(AP_Compass_AK8963::detect_mpu9250);
 #elif CONFIG_HAL_BOARD == HAL_BOARD_LINUX && CONFIG_HAL_BOARD_SUBTYPE != HAL_BOARD_SUBTYPE_LINUX_NONE && CONFIG_HAL_BOARD_SUBTYPE != HAL_BOARD_SUBTYPE_LINUX_BEBOP
     _add_backend(AP_Compass_HMC5843::detect);
     _add_backend(AP_Compass_AK8963::detect_mpu9250);

@@ -188,6 +188,8 @@ AP_InertialSensor_MPU9250::AP_InertialSensor_MPU9250(AP_InertialSensor &imu) :
     _default_rotation(ROTATION_NONE)
 #elif CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_BBBMINI
     _default_rotation(ROTATION_NONE)
+#elif CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_RASPILOT
+		_default_rotation(ROTATION_NONE)
 #else /* rotate for bbone default (and other boards) */
     _default_rotation(ROTATION_ROLL_180_YAW_90)
 #endif
@@ -376,7 +378,7 @@ void AP_InertialSensor_MPU9250::_poll_data(void)
 /*
   read from the data registers and update filtered data
  */
-void AP_InertialSensor_MPU9250::_read_data_transaction() 
+void AP_InertialSensor_MPU9250::_read_data_transaction()
 {
     /* one resister address followed by seven 2-byte registers */
     struct PACKED {
