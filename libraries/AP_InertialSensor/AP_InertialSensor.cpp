@@ -425,7 +425,7 @@ AP_InertialSensor::_detect_backends(void)
     //_add_backend(AP_InertialSensor_LSM303D::detect);
     _add_backend(AP_InertialSensor_MPU6000::detect_spi);
 #elif HAL_INS_DEFAULT == HAL_INS_L3G4200D
-    _add_backend(AP_InertialSensor_L3G4200D::detect_spi);
+    _add_backend(AP_InertialSensor_L3G4200D::detect);
 #else
     #error Unrecognised HAL_INS_TYPE setting
 #endif
