@@ -1,3 +1,6 @@
+vivPilot is based on raspilot,apm,navio+,navio2.
+i would like to thank authors of those projects.
+
 #树莓派飞控RasPilot#
 
 ###RasPilot硬件参数###
